@@ -62,14 +62,14 @@ pub fn global_this(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream>
             }
 
             #[automatically_derived]
-            impl ::core::convert::AsRef<v8::Global<v8::Object>> for #ident {
+            impl AsRef<v8::Global<v8::Object>> for #ident {
                 fn as_ref(&self) -> &v8::Global<v8::Object> {
                     &self.0
                 }
             }
 
             #[automatically_derived]
-            impl ::core::convert::From<#ident> for v8::Global<v8::Object> {
+            impl From<#ident> for v8::Global<v8::Object> {
                 fn from(value: #ident) -> Self {
                     value.0
                 }

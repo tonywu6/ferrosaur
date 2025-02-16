@@ -7,7 +7,9 @@ use syn::{
 };
 use tap::Pipe;
 
-use crate::util::{inner_mod_name, DenoCorePath, FromMetaList, NoGenerics, ReturnWithErrors};
+use crate::util::{
+    inner_mod_name, use_prelude, DenoCorePath, FromMetaList, NoGenerics, ReturnWithErrors,
+};
 
 #[derive(Debug, Clone, FromDeriveInput)]
 #[darling(supports(struct_unit), forward_attrs)]
@@ -81,6 +83,8 @@ pub fn newtype(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
 
     let inner_mod = inner_mod_name("value", &ident);
 
+    let prelude = use_prelude();
+
     errors.finish()?;
 
     Ok(quote! {
@@ -90,6 +94,9 @@ pub fn newtype(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
         #[doc(hidden)]
         mod #inner_mod {
             use super::*;
+
+            #prelude
+
             #[allow(unused)]
             use #deno_core::v8;
 
@@ -97,21 +104,21 @@ pub fn newtype(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
             pub struct #ident(#inner_ty);
 
             #[automatically_derived]
-            impl ::core::convert::From<#inner_ty> for #ident {
+            impl From<#inner_ty> for #ident {
                 fn from(value: #inner_ty) -> Self {
                     Self(value)
                 }
             }
 
             #[automatically_derived]
-            impl ::core::convert::From<#ident> for #inner_ty {
+            impl From<#ident> for #inner_ty {
                 fn from(value: #ident) -> Self {
                     value.0
                 }
             }
 
             #[automatically_derived]
-            impl ::core::convert::AsRef<#inner_ty> for #ident {
+            impl AsRef<#inner_ty> for #ident {
                 fn as_ref(&self) -> &#inner_ty {
                     &self.0
                 }

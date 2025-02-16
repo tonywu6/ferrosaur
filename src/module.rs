@@ -124,7 +124,7 @@ pub fn module(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
         ImportMetaUrl::Preserve => quote! {
             #[inline(always)]
             fn url() -> Result<ModuleSpecifier> {
-                Ok(#fn_url)
+                Result::Ok(#fn_url)
             }
         },
         ImportMetaUrl::Cwd => quote! {
@@ -133,7 +133,7 @@ pub fn module(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
                 let file = #fn_url;
                 let name = file.path().replace('/', "-");
                 let path = std::env::current_dir()?.join(name);
-                Ok(ModuleSpecifier::from_file_path(path).unwrap())
+                Result::Ok(ModuleSpecifier::from_file_path(path).unwrap())
             }
         },
     };
@@ -196,12 +196,12 @@ pub fn module(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
                 }
 
                 pub fn preload() -> #preload_ty {
-                    Ok((Self::url()?, Self::MODULE_SRC))
+                    Result::Ok((Self::url()?, Self::MODULE_SRC))
                 }
 
                 #[inline(always)]
                 async fn evaluate(rt: &mut JsRuntime, id: ModuleId) -> Result<Self> {
-                    Ok(Self({
+                    Result::Ok(Self({
                         rt.mod_evaluate(id).await?;
                         rt.get_module_namespace(id)?
                     }))
@@ -209,14 +209,14 @@ pub fn module(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
             }
 
             #[automatically_derived]
-            impl ::core::convert::AsRef<v8::Global<v8::Object>> for #ident {
+            impl AsRef<v8::Global<v8::Object>> for #ident {
                 fn as_ref(&self) -> &v8::Global<v8::Object> {
                     &self.0
                 }
             }
 
             #[automatically_derived]
-            impl ::core::convert::From<#ident> for v8::Global<v8::Object> {
+            impl From<#ident> for v8::Global<v8::Object> {
                 fn from(value: #ident) -> Self {
                     value.0
                 }

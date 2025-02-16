@@ -10,7 +10,7 @@ use syn::{
 };
 use tap::Pipe;
 
-use crate::util::{DenoCorePath, FromMetaEnum, FromMetaList, ReturnWithErrors};
+use crate::util::{use_prelude, DenoCorePath, FromMetaEnum, FromMetaList, ReturnWithErrors};
 
 mod function;
 mod property;
@@ -64,10 +64,14 @@ pub fn properties(attr: TokenStream, item: ItemImpl) -> Result<TokenStream> {
 
     let Options { deno_core } = attr;
 
+    let prelude = use_prelude();
+
     errors.finish()?;
 
     Ok(quote! {
         const _: () = {
+            #prelude
+
             #[allow(unused)]
             use #deno_core::{
                 anyhow::{anyhow, Context, Result}, error::JsError,
@@ -309,7 +313,7 @@ fn into_return_value<K: AsRef<str>>(name: K, cast: TypeCast) -> TokenStream {
             Ok(#ident)
         },
         TypeCast::V8 => quote! {
-            Ok(#ident.into())
+            Ok(Into::into(#ident))
         },
         TypeCast::V8Nullish => quote! {
             Ok(#ident.map(Into::into))
@@ -414,11 +418,13 @@ fn getter<K: AsRef<str>>(
             T: Into<v8::Local<'a, v8::Value>>
         {
             let scope = &mut v8::TryCatch::new(scope);
-            let this = v8::Local::new(scope, this.into());
+            let this = Into::into(this);
+            let this = v8::Local::new(scope, this);
             let this = this
                 .try_cast::<v8::Object>()
                 .context("failed to cast `this` as a v8::Object")?;
-            let prop = #prop_name.v8_string(scope)?.into();
+            let prop = #prop_name.v8_string(scope)?;
+            let prop = Into::into(prop);
             let data = this.get(scope, prop);
             let data = #unwrap_data;
             let data = #from_data;
@@ -445,11 +451,13 @@ fn setter<K: AsRef<str>>(
             T: Into<v8::Local<'a, v8::Value>>,
         {
             let data = #into_data;
-            let this = v8::Local::new(scope, this.into());
+            let this = Into::into(this);
+            let this = v8::Local::new(scope, this);
             let this = this
                 .try_cast::<v8::Object>()
                 .context("failed to cast `this` as a v8::Object")?;
-            let prop = #prop_name.v8_string(scope)?.into();
+            let prop = #prop_name.v8_string(scope)?;
+            let prop = Into::into(prop);
             this.set(scope, prop, data);
             Ok(())
         }

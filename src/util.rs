@@ -4,7 +4,7 @@ use darling::{
 };
 use heck::ToSnakeCase;
 use proc_macro2::{Span, TokenStream, TokenTree};
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 use syn::{
     punctuated::Punctuated, spanned::Spanned, token::Paren, Attribute, Generics, Ident, Meta, Path,
     PathSegment, Token, VisRestricted, Visibility,
@@ -186,5 +186,17 @@ pub fn pub_in_super(vis: Visibility) -> Visibility {
             path: Token![super](vis.span()).conv::<Path>().pipe(Box::new),
         }
         .pipe(Visibility::Restricted),
+    }
+}
+
+pub fn use_prelude() -> TokenStream {
+    quote! {
+        #[allow(unused)]
+        use ::core::{
+            convert::{AsRef, From, Into},
+            default::Default,
+            option::Option::{self, None, Some},
+            result::Result::{Err, Ok},
+        };
     }
 }

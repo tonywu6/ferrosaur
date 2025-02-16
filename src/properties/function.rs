@@ -158,6 +158,7 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
         let casts = arguments
             .iter()
             .map(|(ident, Argument::Argument { cast, spread })| {
+                let name = ident.to_string();
                 if spread.is_present() {
                     let err = format!("failed to serialize item in argument {name:?}");
                     let var = cast_into_v8_local("arg", *cast, &err, "__bindgen_scope");
@@ -169,7 +170,6 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
                         }
                     }
                 } else {
-                    let name = ident.to_string();
                     let err = format!("failed to serialize argument {name:?}");
                     let var = cast_into_v8_local(&name, *cast, &err, "__bindgen_scope");
                     quote! {
@@ -188,7 +188,8 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
         }};
 
         let slice = quote! {{
-            let mut items = vec![this];
+            extern crate alloc;
+            let mut items = alloc::vec![this];
             items.extend(args.iter().map(|arg| v8::Local::new(scope, arg)));
             items
         }};
@@ -286,10 +287,10 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
         This::Self_ => quote! {{
             let this = AsRef::<v8::Global<_>>::as_ref(self);
             let this = v8::Local::new(scope, this);
-            this.into()
+            this
         }},
         This::Undefined => quote! {
-            v8::undefined(scope).into()
+            v8::undefined(scope)
         },
     };
 
@@ -300,8 +301,10 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
             let scope = &mut v8::TryCatch::new(scope);
 
             let bind = v8::Local::new(scope, bind);
-            let func = v8::Local::new(scope, func).into();
+            let func = v8::Local::new(scope, func);
+            let func = Into::into(func);
             let this = #receiver;
+            let this = Into::into(this);
             let args = #array;
 
             let callable = bind.call(scope, func, &args);

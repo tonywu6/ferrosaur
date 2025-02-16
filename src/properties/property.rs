@@ -79,7 +79,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
             #where_clause
             {
                 #getter
-                let this = ::core::convert::AsRef::<v8::Global<_>>::as_ref(self);
+                let this = AsRef::<v8::Global<_>>::as_ref(self);
                 let this = v8::Local::new(scope, this);
                 getter(scope, this).context(#err)
             }
@@ -100,7 +100,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
             #where_clause
             {
                 #setter
-                let this = ::core::convert::AsRef::<v8::Global<_>>::as_ref(self);
+                let this = AsRef::<v8::Global<_>>::as_ref(self);
                 let this = v8::Local::new(scope, this);
                 setter(scope, this, data).context(#err)?;
                 Ok(self)
