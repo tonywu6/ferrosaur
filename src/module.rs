@@ -3,7 +3,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Attribute, DeriveInput, Ident, Visibility};
 
-use crate::util::{inner_mod_name, DenoCorePath, FromMetaList, NoGenerics, ReturnWithErrors};
+use crate::util::{inner_mod_name, use_prelude, FromMetaList, NoGenerics, BailWithErrors};
 
 #[derive(Debug, Clone, FromDeriveInput)]
 #[darling(supports(struct_unit), forward_attrs)]
@@ -27,8 +27,6 @@ struct Options {
     side: Flag,
     #[darling(default)]
     url: ImportMetaUrl,
-    #[darling(default)]
-    deno_core: DenoCorePath,
 }
 
 #[derive(Debug, Default, Clone, Copy, FromMeta)]
@@ -62,9 +60,9 @@ impl FromMeta for Import {
 pub fn module(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
     let errors = Error::accumulator();
 
-    let (item, errors) = ModuleStruct::from_derive_input(item).or_return_with(errors)?;
+    let (item, errors) = ModuleStruct::from_derive_input(item).or_bail_with(errors)?;
 
-    let (attr, errors) = Import::from_meta_list(attr).or_return_with(errors)?;
+    let (attr, errors) = Import::from_meta_list(attr).or_bail_with(errors)?;
 
     let ModuleStruct {
         ident, vis, attrs, ..
@@ -72,17 +70,18 @@ pub fn module(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
 
     let Import {
         import,
-        options:
-            Options {
-                fast,
-                side,
-                url,
-                deno_core,
-            },
+        options: Options { fast, side, url },
     } = attr;
 
+    let use_prelude = use_prelude();
+
     let uses = quote! {
-        use #deno_core::{
+        use super::*;
+
+        #use_prelude
+
+        #[allow(unused)]
+        use deno_core::{
             anyhow::{Context, Result}, ascii_str_include, v8, FastStaticString,
             JsRuntime, ModuleId, ModuleSpecifier,
         };

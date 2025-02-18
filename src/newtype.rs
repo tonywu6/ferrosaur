@@ -7,9 +7,7 @@ use syn::{
 };
 use tap::Pipe;
 
-use crate::util::{
-    inner_mod_name, use_prelude, DenoCorePath, FromMetaList, NoGenerics, ReturnWithErrors,
-};
+use crate::util::{inner_mod_name, use_prelude, FromMetaList, NoGenerics, BailWithErrors};
 
 #[derive(Debug, Clone, FromDeriveInput)]
 #[darling(supports(struct_unit), forward_attrs)]
@@ -26,26 +24,20 @@ struct Options {
     serde: Flag,
     #[darling(default)]
     of: InnerType,
-    #[darling(default)]
-    deno_core: DenoCorePath,
 }
 
 pub fn newtype(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
     let errors = Error::accumulator();
 
-    let (item, errors) = ValueStruct::from_derive_input(item).or_return_with(errors)?;
+    let (item, errors) = ValueStruct::from_derive_input(item).or_bail_with(errors)?;
 
-    let (attr, errors) = Options::from_meta_list(attr).or_return_with(errors)?;
+    let (attr, errors) = Options::from_meta_list(attr).or_bail_with(errors)?;
 
     let ValueStruct {
         ident, vis, attrs, ..
     } = item;
 
-    let Options {
-        serde,
-        of,
-        deno_core,
-    } = attr;
+    let Options { serde, of } = attr;
 
     let inner_ty = match of {
         InnerType(ty) => quote! {
@@ -56,23 +48,23 @@ pub fn newtype(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
     let impl_serde = if serde.is_present() {
         quote! {
             #[automatically_derived]
-            impl<'de> #deno_core::serde::Deserialize<'de> for #ident {
+            impl<'de> deno_core::serde::Deserialize<'de> for #ident {
                 fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
                 where
-                    D: #deno_core::serde::Deserializer<'de>,
+                    D: deno_core::serde::Deserializer<'de>,
                 {
-                    let value = #deno_core::serde_v8::GlobalValue::deserialize(deserializer)?;
+                    let value = deno_core::serde_v8::GlobalValue::deserialize(deserializer)?;
                     Ok(Self(value.v8_value))
                 }
             }
 
             #[automatically_derived]
-            impl #deno_core::serde::Serialize for #ident {
+            impl deno_core::serde::Serialize for #ident {
                 fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
                 where
-                    S: #deno_core::serde::Serializer,
+                    S: deno_core::serde::Serializer,
                 {
-                    #deno_core::serde_v8::GlobalValue { v8_value: self.0.clone() }
+                    deno_core::serde_v8::GlobalValue { v8_value: self.0.clone() }
                         .serialize(serializer)
                 }
             }
@@ -98,7 +90,7 @@ pub fn newtype(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
             #prelude
 
             #[allow(unused)]
-            use #deno_core::v8;
+            use deno_core::v8;
 
             #(#attrs)*
             pub struct #ident(#inner_ty);
@@ -166,7 +158,7 @@ impl FromMeta for InnerType {
             },
         }
         .map_err(|err| err.with_span(item))
-        .or_return_with(errors)?;
+        .or_bail_with(errors)?;
         errors.finish()?;
         Ok(Self(item))
     }

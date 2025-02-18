@@ -1,16 +1,16 @@
 use std::borrow::Cow;
 
-use darling::{error::Accumulator, util::SpannedValue, Error, FromMeta, Result};
+use darling::{util::SpannedValue, Error, FromMeta, Result};
 use heck::ToLowerCamelCase;
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, quote_spanned};
+use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{
-    punctuated::Punctuated, Block, FnArg, Generics, Ident, ImplItem, ImplItemFn, ItemImpl,
-    Receiver, ReturnType, Signature, Token,
+    punctuated::Punctuated, spanned::Spanned, Block, FnArg, Generics, Ident, ImplItem, ImplItemFn,
+    ItemImpl, Receiver, ReturnType, Signature, Token, Type,
 };
 use tap::Pipe;
 
-use crate::util::{use_prelude, DenoCorePath, FromMetaEnum, FromMetaList, ReturnWithErrors};
+use crate::util::{use_prelude, BailWithErrors, FromMetaEnum};
 
 mod function;
 mod property;
@@ -19,12 +19,6 @@ use self::{
     function::{impl_function, Function},
     property::{impl_property, Property},
 };
-
-#[derive(Debug, Clone, FromMeta)]
-struct Options {
-    #[darling(default)]
-    deno_core: DenoCorePath,
-}
 
 #[derive(Debug, Default, Clone, Copy, FromMeta)]
 #[darling(rename_all = "lowercase")]
@@ -36,7 +30,7 @@ enum TypeCast {
     V8Nullish,
 }
 
-pub fn properties(attr: TokenStream, item: ItemImpl) -> Result<TokenStream> {
+pub fn properties(_: TokenStream, item: ItemImpl) -> Result<TokenStream> {
     let mut errors = Error::accumulator();
 
     errors.handle(only_inherent_impl(&item));
@@ -60,20 +54,16 @@ pub fn properties(attr: TokenStream, item: ItemImpl) -> Result<TokenStream> {
         .filter_map(|item| errors.handle(impl_item(item)))
         .collect::<Vec<_>>();
 
-    let (attr, errors) = Options::from_meta_list(attr).or_return_with(errors)?;
-
-    let Options { deno_core } = attr;
-
-    let prelude = use_prelude();
+    let use_prelude = use_prelude();
 
     errors.finish()?;
 
     Ok(quote! {
         const _: () = {
-            #prelude
+            #use_prelude
 
             #[allow(unused)]
-            use #deno_core::{
+            use deno_core::{
                 anyhow::{anyhow, Context, Result}, error::JsError,
                 ascii_str, serde_v8, v8, FastString, JsRuntime,
             };
@@ -124,13 +114,13 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
             .with_span(&sig)
             .pipe(Err),
     }
-    .or_return_with(errors)?;
+    .or_bail_with(errors)?;
 
     let (impl_, errors) = match item {
         PropertyType::Property(prop) => impl_property(prop, sig),
         PropertyType::Function(func) => impl_function(func, sig),
     }
-    .or_return_with(errors)?;
+    .or_bail_with(errors)?;
 
     errors.finish()?;
 
@@ -201,48 +191,50 @@ enum FnColor {
     Async,
 }
 
-fn fn_color(sig: &Signature, color: FnColor) -> darling::Result<TokenStream> {
-    let mut errors = darling::Error::accumulator();
+impl FnColor {
+    fn only(self, sig: &Signature) -> Result<TokenStream> {
+        let mut errors = Error::accumulator();
 
-    macro_rules! deny {
-        ($attr:ident, $msg:literal) => {
-            if sig.$attr.is_some() {
-                darling::Error::custom($msg)
-                    .with_span(&sig.$attr)
-                    .pipe(|e| errors.push(e));
+        macro_rules! deny {
+            ($attr:ident, $msg:literal) => {
+                if sig.$attr.is_some() {
+                    darling::Error::custom($msg)
+                        .with_span(&sig.$attr)
+                        .pipe(|e| errors.push(e));
+                }
+            };
+        }
+
+        deny!(constness, "fn cannot be `const` here");
+        deny!(unsafety, "fn cannot be `unsafe` here");
+        deny!(abi, "fn cannot be `extern` here");
+        deny!(variadic, "fn cannot be variadic here");
+
+        match self {
+            FnColor::Sync => {
+                if sig.asyncness.is_some() {
+                    Error::custom("fn cannot be `async` here")
+                        .with_span(&sig.asyncness)
+                        .pipe(|e| errors.push(e));
+                }
             }
-        };
+            FnColor::Async => {
+                if sig.asyncness.is_none() {
+                    Error::custom("fn is required to be `async` here")
+                        .with_span(&sig.fn_token)
+                        .pipe(|e| errors.push(e));
+                }
+            }
+        }
+
+        errors.finish_with(match self {
+            FnColor::Sync => quote! {},
+            FnColor::Async => {
+                let async_ = sig.asyncness;
+                quote! { #async_ }
+            }
+        })
     }
-
-    deny!(constness, "fn cannot be `const` here");
-    deny!(unsafety, "fn cannot be `unsafe` here");
-    deny!(abi, "fn cannot be `extern` here");
-    deny!(variadic, "fn cannot be variadic here");
-
-    match color {
-        FnColor::Sync => {
-            if sig.asyncness.is_some() {
-                darling::Error::custom("fn cannot be `async` here")
-                    .with_span(&sig.asyncness)
-                    .pipe(|e| errors.push(e));
-            }
-        }
-        FnColor::Async => {
-            if sig.asyncness.is_none() {
-                darling::Error::custom("fn is required to be `async` here")
-                    .with_span(&sig.fn_token)
-                    .pipe(|e| errors.push(e));
-            }
-        }
-    }
-
-    errors.finish_with(match color {
-        FnColor::Sync => quote! {},
-        FnColor::Async => {
-            let async_ = sig.asyncness;
-            quote! { #async_ }
-        }
-    })
 }
 
 fn self_arg(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receiver> {
@@ -254,8 +246,19 @@ fn self_arg(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receive
                 Ok(recv)
             }
         }
-        Some(FnArg::Typed(ty)) => Error::custom("must be `&self`").with_span(ty).pipe(Err),
-        None => Error::custom("missing `&self`").with_span(&sig).pipe(Err),
+        Some(FnArg::Typed(ty)) => Error::custom("must have `&self` as the first argument")
+            .with_span(ty)
+            .pipe(Err),
+        None => Error::custom("missing `&self` as the first argument")
+            .with_span(&sig)
+            .pipe(Err),
+    }
+}
+
+fn return_type(ty: &ReturnType) -> TokenStream {
+    match ty {
+        ReturnType::Type(_, ty) => quote! { #ty },
+        ReturnType::Default => quote! { () },
     }
 }
 
@@ -284,102 +287,117 @@ fn embedded_key<K: AsRef<str>>(key: &SpannedValue<K>) -> TokenStream {
     }
 }
 
-fn return_type(ty: &ReturnType, cast: TypeCast, errors: &mut Accumulator) -> TokenStream {
-    match (ty, cast) {
-        (ReturnType::Type(_, ty), TypeCast::V8Nullish) => quote! {
-            Option<#ty>
-        },
-        (ReturnType::Type(_, ty), TypeCast::Serde | TypeCast::V8) => quote! {
-            #ty
-        },
-        (ReturnType::Default, TypeCast::Serde) => quote! {
-            ()
-        },
-        (ReturnType::Default, TypeCast::V8 | TypeCast::V8Nullish) => {
-            "must specify a return type when `cast(v8...)` is specified"
-                .pipe(Error::custom)
-                .pipe(|e| errors.push(e));
-            quote! {
-                Option<()>
+impl TypeCast {
+    #[allow(clippy::wrong_self_convention)]
+    fn from_v8_local<K: AsRef<str>>(&self, name: K, scope: &'static str) -> TokenStream {
+        let ident = format_ident!("{}", name.as_ref());
+        let handle = format_ident!("{scope}");
+        match self {
+            TypeCast::Serde => quote! {{
+                serde_v8::from_v8(#handle, #ident)
+            }},
+            TypeCast::V8 => quote! {{
+                match #ident.try_cast() {
+                    Ok(value) => Ok(v8::Global::new(#handle, value)),
+                    Err(error) => Err(error)
+                }
+            }},
+            TypeCast::V8Nullish => {
+                let inner = TypeCast::V8.from_v8_local(name.as_ref(), scope);
+                quote! {{
+                    if #ident.is_null_or_undefined() {
+                        Ok(None)
+                    } else {
+                        #inner.map(Some)
+                    }
+                }}
             }
         }
     }
-}
 
-fn into_return_value<K: AsRef<str>>(name: K, cast: TypeCast) -> TokenStream {
-    let ident = format_ident!("{}", name.as_ref());
-    match cast {
-        TypeCast::Serde => quote! {
-            Ok(#ident)
-        },
-        TypeCast::V8 => quote! {
-            Ok(Into::into(#ident))
-        },
-        TypeCast::V8Nullish => quote! {
-            Ok(#ident.map(Into::into))
-        },
-    }
-}
-
-fn cast_from_v8_local<K: AsRef<str>>(
-    name: K,
-    cast: TypeCast,
-    error: &str,
-    scope: &'static str,
-) -> TokenStream {
-    let ident = format_ident!("{}", name.as_ref());
-    let handle = format_ident!("{scope}");
-    match cast {
-        TypeCast::Serde => quote! {{
-            serde_v8::from_v8(#handle, #ident)
-                .context(#error)?
-        }},
-        TypeCast::V8 => quote! {{
-            let #ident = #ident.try_cast()
-                .context(#error)?;
-            let #ident = v8::Global::new(#handle, #ident);
-            #ident
-        }},
-        TypeCast::V8Nullish => {
-            let inner = cast_from_v8_local(name.as_ref(), TypeCast::V8, error, scope);
-            quote! {{
-                if #ident.is_null_or_undefined() {
-                    None
-                } else {
-                    Some(#inner)
-                }
-            }}
+    #[allow(clippy::wrong_self_convention)]
+    fn into_v8_local<K: AsRef<str>>(&self, name: K, scope: &'static str) -> TokenStream {
+        let ident = format_ident!("{}", name.as_ref());
+        let handle = format_ident!("{scope}");
+        match self {
+            TypeCast::Serde => quote! {{
+                serde_v8::to_v8(#handle, #ident)
+            }},
+            TypeCast::V8 => quote! {{
+                v8::Local::new(#handle, #ident).try_cast()
+            }},
+            TypeCast::V8Nullish => {
+                let inner = TypeCast::V8.into_v8_local(name.as_ref(), scope);
+                quote! {{
+                    match #ident {
+                        None => v8::null(#handle).try_cast(),
+                        Some(#ident) => #inner
+                    }
+                }}
+            }
         }
     }
-}
 
-fn cast_into_v8_local<K: AsRef<str>>(
-    name: K,
-    cast: TypeCast,
-    error: &str,
-    scope: &'static str,
-) -> TokenStream {
-    let ident = format_ident!("{}", name.as_ref());
-    let handle = format_ident!("{scope}");
-    match cast {
-        TypeCast::Serde => quote! {{
-            serde_v8::to_v8(#handle, #ident)
-                .context(#error)?
-        }},
-        TypeCast::V8 => quote! {{
-            let #ident = v8::Local::new(#handle, #ident);
-            let #ident = #ident.try_cast()
-                .context(#error)?;
-            #ident
-        }},
-        TypeCast::V8Nullish => {
-            let inner = cast_into_v8_local(name.as_ref(), TypeCast::V8, error, scope);
-            quote! {{
-                match #ident {
-                    None => v8::null(#handle).try_cast()?,
-                    Some(#ident) => #inner
+    #[allow(clippy::wrong_self_convention)]
+    fn into_return_value<K: AsRef<str>>(&self, name: K) -> TokenStream {
+        let ident = format_ident!("{}", name.as_ref());
+        match self {
+            TypeCast::Serde => quote! {
+                Ok(#ident)
+            },
+            TypeCast::V8 => quote! {
+                Ok(Into::into(#ident))
+            },
+            TypeCast::V8Nullish => quote! {
+                Ok(#ident.map(Into::into))
+            },
+        }
+    }
+
+    fn option_check<S: Spanned>(&self, ty: &ReturnType, ident: S) -> Result<()> {
+        fn may_be_option(ty: &Type) -> bool {
+            match ty {
+                Type::Path(path) => match path.path.segments.last() {
+                    None => false,
+                    Some(name) => name.ident == "Option",
+                },
+                Type::Paren(..) => false, // now why would you do that
+                _ => false,
+            }
+        }
+        match (self, ty) {
+            (TypeCast::V8, ReturnType::Type(_, ty)) => {
+                if may_be_option(ty) {
+                    [
+                        "this will always return Some(...) because of `cast(v8)`",
+                        "to check `null` and `undefined` at runtime, use `cast(v8::nullish)`",
+                        "otherwise, remove `Option`",
+                    ]
+                    .join("\n")
+                    .pipe(Error::custom)
+                    .with_span(ty)
+                    .pipe(Err)
+                } else {
+                    Ok(())
                 }
-            }}
+            }
+            (TypeCast::V8Nullish, ReturnType::Type(_, ty)) => {
+                if may_be_option(ty) {
+                    Ok(())
+                } else {
+                    "`cast(v8::nullish)` requires `Option<...>` as a return type"
+                        .pipe(Error::custom)
+                        .with_span(&ty)
+                        .pipe(Err)
+                }
+            }
+            (TypeCast::V8 | TypeCast::V8Nullish, ReturnType::Default) => {
+                "must specify a return type when `cast(v8...)` is specified"
+                    .pipe(Error::custom)
+                    .with_span(&ident)
+                    .pipe(Err)
+            }
+            (TypeCast::Serde, _) => Ok(()),
         }
     }
 }
@@ -399,63 +417,61 @@ fn unwrap_v8_local(name: &str) -> TokenStream {
     }}
 }
 
-fn getter<K: AsRef<str>>(
-    prop: &SpannedValue<K>,
-    data: &TokenStream,
-    cast: TypeCast,
-) -> TokenStream {
+fn getter<K, T>(prop: &SpannedValue<K>, cast: TypeCast, ty: T) -> TokenStream
+where
+    K: AsRef<str>,
+    T: ToTokens,
+{
     let unwrap_data = unwrap_v8_local("data");
-    let from_data = cast_from_v8_local("data", cast, "failed to convert value from v8", "scope");
-    let return_ok = into_return_value("data", cast);
+    let from_data = cast.from_v8_local("data", "scope");
+    let return_ok = cast.into_return_value("data");
     let prop_name = embedded_key(prop);
     quote! {
         #[inline(always)]
         fn getter<'a, T>(
             scope: &mut v8::HandleScope<'a>,
             this: T,
-        ) -> Result<#data>
+        ) -> Result<#ty>
         where
-            T: Into<v8::Local<'a, v8::Value>>
+            T: TryInto<v8::Local<'a, v8::Object>>,
+            T::Error: ::std::error::Error + Send + Sync + 'static
         {
             let scope = &mut v8::TryCatch::new(scope);
-            let this = Into::into(this);
-            let this = v8::Local::new(scope, this);
-            let this = this
-                .try_cast::<v8::Object>()
-                .context("failed to cast `this` as a v8::Object")?;
+            let this = TryInto::try_into(this)
+                .context("failed to cast `self` as a v8::Object")?;
             let prop = #prop_name.v8_string(scope)?;
             let prop = Into::into(prop);
             let data = this.get(scope, prop);
             let data = #unwrap_data;
-            let data = #from_data;
+            let data = #from_data
+                .context("failed to convert from v8 value")?;
             #return_ok
         }
     }
 }
 
-fn setter<K: AsRef<str>>(
-    prop: &SpannedValue<K>,
-    data: &TokenStream,
-    cast: TypeCast,
-) -> TokenStream {
+fn setter<K, T>(prop: &SpannedValue<K>, cast: TypeCast, ty: T) -> TokenStream
+where
+    K: AsRef<str>,
+    T: ToTokens,
+{
     let prop_name = embedded_key(prop);
-    let into_data = cast_into_v8_local("data", cast, "failed to prepare value for v8", "scope");
+    let into_data = cast.into_v8_local("data", "scope");
     quote! {
         #[inline(always)]
         fn setter<'a, T>(
             scope: &mut v8::HandleScope<'a>,
             this: T,
-            data: #data
+            data: #ty
         ) -> Result<()>
         where
-            T: Into<v8::Local<'a, v8::Value>>,
+            T: TryInto<v8::Local<'a, v8::Object>>,
+            T::Error: ::std::error::Error + Send + Sync + 'static
         {
-            let data = #into_data;
-            let this = Into::into(this);
-            let this = v8::Local::new(scope, this);
-            let this = this
-                .try_cast::<v8::Object>()
-                .context("failed to cast `this` as a v8::Object")?;
+            let data = #into_data
+                .context("failed to convert into v8 value")?;
+            let this = TryInto::try_into(this)
+                .context("failed to cast `self` as a v8::Object")?;
             let prop = #prop_name.v8_string(scope)?;
             let prop = Into::into(prop);
             this.set(scope, prop, data);

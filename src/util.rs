@@ -3,7 +3,7 @@ use darling::{
     Result,
 };
 use heck::ToSnakeCase;
-use proc_macro2::{Span, TokenStream, TokenTree};
+use proc_macro2::{TokenStream, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
     punctuated::Punctuated, spanned::Spanned, token::Paren, Attribute, Generics, Ident, Meta, Path,
@@ -21,12 +21,12 @@ impl TokenStreamResult for Result<TokenStream> {
     }
 }
 
-pub trait ReturnWithErrors<T> {
-    fn or_return_with(self, errors: Accumulator) -> Result<(T, Accumulator)>;
+pub trait BailWithErrors<T> {
+    fn or_bail_with(self, errors: Accumulator) -> Result<(T, Accumulator)>;
 }
 
-impl<T> ReturnWithErrors<T> for Result<T> {
-    fn or_return_with(self, errors: Accumulator) -> Result<(T, Accumulator)> {
+impl<T> BailWithErrors<T> for Result<T> {
+    fn or_bail_with(self, errors: Accumulator) -> Result<(T, Accumulator)> {
         match self {
             Ok(value) => Ok((value, errors)),
             Err(error) => errors
@@ -34,6 +34,21 @@ impl<T> ReturnWithErrors<T> for Result<T> {
                 .finish()
                 .map(|_| unreachable!()),
         }
+    }
+}
+
+pub trait NonFatalErrors<T> {
+    #[allow(unused)]
+    fn non_fatal(self, errors: &mut Accumulator) -> T;
+}
+
+impl<T> NonFatalErrors<T> for (T, Option<Error>) {
+    fn non_fatal(self, errors: &mut Accumulator) -> T {
+        let (ok, err) = self;
+        if let Some(err) = err {
+            errors.push(err);
+        }
+        ok
     }
 }
 
@@ -107,24 +122,6 @@ impl FromGenerics for NoGenerics {
     }
 }
 
-#[derive(Debug, Clone, FromMeta)]
-pub struct DenoCorePath(Path);
-
-impl Default for DenoCorePath {
-    fn default() -> Self {
-        Ident::new("deno_core", Span::call_site())
-            .conv::<PathSegment>()
-            .conv::<Path>()
-            .pipe(Self)
-    }
-}
-
-impl ToTokens for DenoCorePath {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.0.to_tokens(tokens)
-    }
-}
-
 pub fn inner_mod_name<T: ToTokens>(prefix: &str, item: T) -> Ident {
     fn collect_ident(stream: TokenStream, collector: &mut Vec<String>) {
         for token in stream {
@@ -141,7 +138,7 @@ pub fn inner_mod_name<T: ToTokens>(prefix: &str, item: T) -> Ident {
         tokens
     }
     .join("_");
-    format!("__{prefix}_{}_bindgen", name)
+    format!("__bindgen_{prefix}_{name}")
         .to_lowercase()
         .pipe_as_ref(|name| Ident::new(name, item.span()))
 }
@@ -191,12 +188,16 @@ pub fn pub_in_super(vis: Visibility) -> Visibility {
 
 pub fn use_prelude() -> TokenStream {
     quote! {
+        extern crate alloc as _alloc;
         #[allow(unused)]
         use ::core::{
             convert::{AsRef, From, Into},
             default::Default,
+            marker::{Send, Sync},
             option::Option::{self, None, Some},
             result::Result::{Err, Ok},
         };
+        #[allow(unused)]
+        use _alloc::vec::Vec;
     }
 }

@@ -1,13 +1,13 @@
-use darling::{Error, FromDeriveInput, FromMeta, Result};
+use darling::{Error, FromDeriveInput, Result};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Attribute, DeriveInput, Ident, Visibility};
 
-use crate::util::{inner_mod_name, DenoCorePath, FromMetaList, NoGenerics, ReturnWithErrors};
+use crate::util::{inner_mod_name, use_prelude, BailWithErrors, NoGenerics};
 
 #[derive(Debug, Clone, FromDeriveInput)]
 #[darling(supports(struct_unit), forward_attrs)]
-struct GlobalThis {
+struct Options {
     ident: Ident,
     vis: Visibility,
     attrs: Vec<Attribute>,
@@ -15,26 +15,18 @@ struct GlobalThis {
     generics: NoGenerics,
 }
 
-#[derive(Debug, Clone, FromMeta)]
-struct Options {
-    #[darling(default)]
-    deno_core: DenoCorePath,
-}
-
-pub fn global_this(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
+pub fn global_this(_: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
     let errors = Error::accumulator();
 
-    let (item, errors) = GlobalThis::from_derive_input(item).or_return_with(errors)?;
+    let (item, errors) = Options::from_derive_input(item).or_bail_with(errors)?;
 
-    let (attr, errors) = Options::from_meta_list(attr).or_return_with(errors)?;
-
-    let GlobalThis {
+    let Options {
         ident, vis, attrs, ..
     } = item;
 
-    let Options { deno_core } = attr;
-
     let inner_mod = inner_mod_name("global_this", &ident);
+
+    let use_prelude = use_prelude();
 
     errors.finish()?;
 
@@ -44,7 +36,11 @@ pub fn global_this(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream>
 
         #[doc(hidden)]
         mod #inner_mod {
-            use #deno_core::{v8, JsRuntime};
+            use super::*;
+
+            #use_prelude
+
+            use deno_core::{v8, JsRuntime};
 
             #(#attrs)*
             pub struct #ident(v8::Global<v8::Object>);

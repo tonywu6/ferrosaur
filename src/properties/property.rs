@@ -9,7 +9,7 @@ use tap::Pipe;
 
 use crate::properties::setter;
 
-use super::{fn_color, getter, property_key, return_type, self_arg, FnColor, TypeCast};
+use super::{getter, property_key, return_type, self_arg, FnColor, TypeCast};
 
 #[derive(Debug, Default, Clone, FromMeta)]
 pub struct Property {
@@ -22,7 +22,7 @@ pub struct Property {
 pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>> {
     let mut errors = Error::accumulator();
 
-    errors.handle(fn_color(&sig, FnColor::Sync));
+    errors.handle(FnColor::Sync.only(&sig));
 
     let span = sig.span();
 
@@ -56,6 +56,8 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         with_setter,
     } = prop;
 
+    let return_ty = return_type(&output);
+
     errors.handle(if matches!(output, ReturnType::Default) {
         Error::custom("#[property] fn must have an explicit return type")
             .with_span(&ident)
@@ -64,21 +66,22 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         Ok(())
     });
 
-    let return_ty = return_type(&output, cast, &mut errors);
+    errors.handle(cast.option_check(&output, &ident));
 
     let prop = property_key(&ident, &name);
 
     let getter = {
-        let getter = getter(&prop, &return_ty, cast);
+        let getter = getter(&prop, cast, &return_ty);
         let err = format!("failed to get property {:?}", prop.as_str());
         quote! {
             fn #ident <#params> (
                 #self_arg,
-                scope: &mut v8::HandleScope
+                rt: &mut JsRuntime,
             ) -> Result<#return_ty>
             #where_clause
             {
                 #getter
+                let scope = &mut rt.handle_scope();
                 let this = AsRef::<v8::Global<_>>::as_ref(self);
                 let this = v8::Local::new(scope, this);
                 getter(scope, this).context(#err)
@@ -89,17 +92,18 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
     let setter = if with_setter.is_present() {
         let ident = format_ident!("set_{}", ident);
         let data = quote! { &#return_ty };
-        let setter = setter(&prop, &data, cast);
+        let setter = setter(&prop, cast, &data);
         let err = format!("failed to set property {:?}", prop.as_str());
         quote! {
             fn #ident <#params> (
                 #self_arg,
-                scope: &mut v8::HandleScope,
                 data: #data,
+                _rt: &mut JsRuntime,
             ) -> Result<&Self>
             #where_clause
             {
                 #setter
+                let scope = &mut _rt.handle_scope();
                 let this = AsRef::<v8::Global<_>>::as_ref(self);
                 let this = v8::Local::new(scope, this);
                 setter(scope, this, data).context(#err)?;

@@ -1,0 +1,13 @@
+- [x] rt instead of scope?
+- [x] postfix rt?
+- [x] ~~extern crate deno_core~~
+- [x] transparent Option
+  - [x] Option check
+- [x] errors in function
+- [ ] error prefixes
+- [ ] revisit FromMetaEnum
+- [ ] namespaced macros
+- [ ] url("...")?
+- [ ] generics usability
+- [ ] include fast string
+- [ ] revisit constructor
