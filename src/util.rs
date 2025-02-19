@@ -4,10 +4,10 @@ use darling::{
 };
 use heck::ToSnakeCase;
 use proc_macro2::{TokenStream, TokenTree};
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, token::Paren, Attribute, Generics, Ident, Meta, Path,
-    PathSegment, Token, VisRestricted, Visibility,
+    parse::Parser, punctuated::Punctuated, spanned::Spanned, token::Paren, Attribute, Expr,
+    Generics, Ident, Lit, Meta, Path, PathSegment, Token, VisRestricted, Visibility,
 };
 use tap::{Conv, Pipe, Tap};
 
@@ -21,12 +21,12 @@ impl TokenStreamResult for Result<TokenStream> {
     }
 }
 
-pub trait BailWithErrors<T> {
-    fn or_bail_with(self, errors: Accumulator) -> Result<(T, Accumulator)>;
+pub trait FatalErrors<T> {
+    fn or_fatal(self, errors: Accumulator) -> Result<(T, Accumulator)>;
 }
 
-impl<T> BailWithErrors<T> for Result<T> {
-    fn or_bail_with(self, errors: Accumulator) -> Result<(T, Accumulator)> {
+impl<T> FatalErrors<T> for Result<T> {
+    fn or_fatal(self, errors: Accumulator) -> Result<(T, Accumulator)> {
         match self {
             Ok(value) => Ok((value, errors)),
             Err(error) => errors
@@ -34,6 +34,12 @@ impl<T> BailWithErrors<T> for Result<T> {
                 .finish()
                 .map(|_| unreachable!()),
         }
+    }
+}
+
+impl<T> FatalErrors<T> for syn::Result<T> {
+    fn or_fatal(self, errors: Accumulator) -> Result<(T, Accumulator)> {
+        self.map_err(Error::from).or_fatal(errors)
     }
 }
 
@@ -52,39 +58,92 @@ impl<T> NonFatalErrors<T> for (T, Option<Error>) {
     }
 }
 
-pub trait FromMetaList: Sized {
-    fn from_meta_list(tokens: TokenStream) -> Result<Self>;
-}
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Feature<T>(pub T);
 
-impl<T: FromMeta> FromMetaList for T {
-    fn from_meta_list(tokens: TokenStream) -> Result<Self> {
-        NestedMeta::parse_meta_list(tokens)?.pipe_as_ref(Self::from_list)
-    }
-}
+pub trait FeatureName: Sized {
+    const PREFIX: &str;
 
-pub trait FromMetaEnum: FromMeta {
-    fn test(name: &str) -> bool;
+    fn unit() -> Result<Self>;
 
-    fn from_unit(name: &str) -> Result<Self>;
-
-    fn from_meta2(meta: &Meta) -> Result<Self> {
-        match meta {
-            Meta::Path(path) => Self::from_unit(&path_to_string(path)),
-            Meta::List(..) => Self::from_list(&[NestedMeta::Meta(meta.clone())]),
-            meta => Self::from_meta(meta),
+    fn test(meta: &Meta) -> Result<()> {
+        let name = path_to_string(meta.path());
+        if Self::PREFIX == name {
+            Ok(())
+        } else {
+            format!("unexpected name `{name}`, expected `{}`", Self::PREFIX)
+                .pipe(Error::custom)
+                .with_span(meta.path())
+                .pipe(Err)
         }
     }
 
-    fn filter_attrs(
-        attrs: Vec<Attribute>,
-        errors: &mut Accumulator,
-    ) -> (Vec<Self>, Vec<Attribute>) {
-        let mut items = Vec::<Self>::new();
+    fn error<T: std::fmt::Display>(msg: T) -> Error {
+        Error::custom(format!("({}) {msg}", Self::PREFIX))
+    }
+}
+
+impl<T> FromMeta for Feature<T>
+where
+    T: FromMeta + FeatureName,
+{
+    fn from_meta(item: &Meta) -> Result<Self> {
+        T::test(item)?;
+        match item {
+            Meta::Path(_) => Self::from_word(),
+            item => Ok(Self(T::from_meta(item)?)),
+        }
+    }
+
+    fn from_word() -> Result<Self> {
+        Ok(Self(T::unit()?))
+    }
+
+    fn from_nested_meta(item: &NestedMeta) -> Result<Self> {
+        Ok(Self(T::from_nested_meta(item)?))
+    }
+
+    fn from_none() -> Option<Self> {
+        Some(Self(T::from_none()?))
+    }
+
+    fn from_list(items: &[NestedMeta]) -> Result<Self> {
+        Ok(Self(T::from_list(items)?))
+    }
+
+    fn from_value(value: &Lit) -> Result<Self> {
+        Ok(Self(T::from_value(value)?))
+    }
+
+    fn from_expr(expr: &Expr) -> Result<Self> {
+        Ok(Self(T::from_expr(expr)?))
+    }
+
+    fn from_char(value: char) -> Result<Self> {
+        Ok(Self(T::from_char(value)?))
+    }
+
+    fn from_string(value: &str) -> Result<Self> {
+        Ok(Self(T::from_string(value)?))
+    }
+
+    fn from_bool(value: bool) -> Result<Self> {
+        Ok(Self(T::from_bool(value)?))
+    }
+}
+
+impl<T> Feature<T>
+where
+    T: FromMeta + FeatureName,
+{
+    pub fn collect(attrs: Vec<Attribute>) -> ((Vec<Self>, Vec<Attribute>), Option<Error>) {
+        let mut errors = Error::accumulator();
+        let mut items = Vec::new();
         let attrs = attrs
             .into_iter()
             .filter_map(|attr| {
-                if Self::test(&path_to_string(attr.meta.path())) {
-                    if let Some(item) = errors.handle(Self::from_meta2(&attr.meta)) {
+                if T::test(&attr.meta).is_ok() {
+                    if let Some(item) = errors.handle(Self::from_meta(&attr.meta)) {
                         items.push(item);
                         None
                     } else {
@@ -94,8 +153,39 @@ pub trait FromMetaEnum: FromMeta {
                     Some(attr)
                 }
             })
-            .collect::<Vec<_>>();
-        (items, attrs)
+            .collect();
+        ((items, attrs), errors.finish().err())
+    }
+}
+
+pub trait FeatureEnum: FeatureName {
+    const PREFIXES: &[&str];
+}
+
+impl<T> Feature<T>
+where
+    T: FromMeta + FeatureEnum,
+{
+    pub fn exactly_one(attrs: Vec<Attribute>) -> Result<(Self, Vec<Attribute>)> {
+        let ((items, attrs), error) = Self::collect(attrs);
+        if let Some(error) = error {
+            return Err(error);
+        };
+        match items.len() {
+            1 => Ok((items.into_iter().next().unwrap(), attrs)),
+            _ => format!("expected exactly one of {}", T::PREFIXES.join(", "))
+                .pipe(T::error)
+                .with_span(&quote! { #(#attrs)* })
+                .pipe(Err),
+        }
+    }
+
+    pub fn parse_macro_attribute(attr: TokenStream) -> Result<Self> {
+        format_ident!("{}", T::PREFIX)
+            .pipe(|name| quote! { #[#name(#attr)] })
+            .pipe(|tokens| Attribute::parse_outer.parse2(tokens))?
+            .pipe(|attrs| Self::exactly_one(attrs))
+            .pipe(|result| Ok(result?.0))
     }
 }
 
@@ -200,4 +290,16 @@ pub fn use_prelude() -> TokenStream {
         #[allow(unused)]
         use _alloc::vec::Vec;
     }
+}
+
+#[allow(unused)]
+pub fn debug_docs<T: std::fmt::Debug>(item: T) -> TokenStream {
+    let docs = format!("```\n{item:#?}\n```")
+        .split('\n')
+        .map(|line| {
+            let line = format!(" {line}");
+            quote! { #[doc = #line] }
+        })
+        .collect::<Vec<_>>();
+    quote! { #(#docs)* }
 }

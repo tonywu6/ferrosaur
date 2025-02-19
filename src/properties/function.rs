@@ -1,84 +1,124 @@
-use darling::{
-    util::{Flag, SpannedValue},
-    Error, FromMeta, Result,
-};
+use darling::{error::Accumulator, util::SpannedValue, FromMeta, Result};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, FnArg, Generics, Ident, Pat, ReturnType, Signature,
-    Token,
+    punctuated::Punctuated, spanned::Spanned, FnArg, Generics, Ident, Pat, Receiver, ReturnType,
+    Signature, Token, Type,
 };
 use tap::{Pipe, Tap};
 
-use crate::{properties::self_arg, util::FromMetaEnum};
+use crate::util::{Feature, FeatureName, NonFatalErrors};
 
-use super::{getter, property_key, return_type, unwrap_v8_local, FnColor, TypeCast};
+use super::{
+    getter, property_key, return_type, self_arg, unwrap_v8_local, Argument, Constructor, FnColor,
+    Function, This, TypeCast,
+};
 
-#[derive(Debug, Default, Clone, FromMeta)]
-pub struct Function {
-    name: Option<SpannedValue<String>>,
-    this: Option<SpannedValue<This>>,
-    constructor: Flag,
-    #[darling(default)]
+pub enum Callable {
+    Func(Function),
+    Ctor(Constructor),
+}
+
+struct Callee {
     cast: TypeCast,
+    this: This,
+    ctor: bool,
+    name: SpannedValue<String>,
+    err_ctx: String,
+    self_arg: Option<Receiver>,
+    fn_color: Option<TokenStream>,
+    async_call: TokenStream,
+    await_call: TokenStream,
 }
 
-#[derive(Debug, Default, Clone, Copy, FromMeta)]
-enum This {
-    #[darling(rename = "self")]
-    #[default]
-    Self_,
-    #[darling(rename = "undefined")]
-    Undefined,
-}
+impl Callee {
+    fn from_func(
+        Function { name, this, cast }: Function,
+        sig: &Signature,
+        errors: &mut Accumulator,
+    ) -> Self {
+        errors.handle(cast.option_check::<Function>(&sig.output));
+        let name = property_key(&sig.ident, &name);
+        Self {
+            cast,
+            this,
+            ctor: false,
+            err_ctx: format!("failed to call function {:?}", name.as_str()),
+            name: name.into_owned(),
+            self_arg: errors
+                .handle(self_arg::<Function>(&sig.inputs, sig.span()))
+                .cloned(),
+            fn_color: errors.handle(FnColor::Async.only::<Function>(sig)),
+            async_call: quote! { async },
+            await_call: quote! { .await },
+        }
+    }
 
-#[derive(Debug, Clone, Copy, FromMeta)]
-enum Argument {
-    Argument {
-        #[darling(default)]
-        cast: TypeCast,
-        spread: Flag,
-    },
-}
-
-impl Default for Argument {
-    fn default() -> Self {
-        Argument::Argument {
-            cast: Default::default(),
-            spread: Default::default(),
+    fn from_ctor(
+        Constructor { class }: Constructor,
+        sig: &Signature,
+        errors: &mut Accumulator,
+    ) -> Self {
+        let cast = TypeCast::V8;
+        errors.handle(cast.option_check::<Constructor>(&sig.output));
+        let name = match (class, &sig.output) {
+            (Some(class), _) => class,
+            (None, ReturnType::Type(_, ty)) => {
+                let ident = match &**ty {
+                    Type::Path(ty) => ty.path.segments.last().map(|s| &s.ident),
+                    _ => None,
+                };
+                if let Some(ident) = ident {
+                    SpannedValue::new(ident.to_string(), ident.span())
+                } else {
+                    "cannot infer class name from return type\nspecify `#[js(new(class(...)))] instead`"
+                        .pipe(Constructor::error)
+                        .with_span(ty)
+                        .pipe(|e| errors.push(e));
+                    property_key(&sig.ident, &None).into_owned()
+                }
+            }
+            (None, ReturnType::Default) => {
+                "cannot infer class name\nspecify a return type, or use `#[js(new(class(...)))]`"
+                    .pipe(Constructor::error)
+                    .with_span(&sig.ident)
+                    .pipe(|e| errors.push(e));
+                property_key(&sig.ident, &None).into_owned()
+            }
+        };
+        Self {
+            cast,
+            this: This::Self_,
+            ctor: true,
+            err_ctx: format!("failed to construct {:?}", name.as_str()),
+            name,
+            self_arg: errors
+                .handle(self_arg::<Constructor>(&sig.inputs, sig.span()))
+                .cloned(),
+            fn_color: errors.handle(FnColor::Sync.only::<Constructor>(sig)),
+            async_call: quote! {},
+            await_call: quote! {},
         }
     }
 }
 
-impl FromMetaEnum for Argument {
-    fn test(name: &str) -> bool {
-        name == "argument"
-    }
+pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>> {
+    let mut errors = Accumulator::default();
 
-    fn from_unit(_: &str) -> Result<Self> {
-        "expected at least 1 option\nto use defaults, remove this attribute"
-            .pipe(Error::custom)
-            .pipe(Err)
-    }
-}
-
-pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>> {
-    let mut errors = Error::accumulator();
-
-    let Function {
-        name,
+    let Callee {
         cast,
         this,
-        constructor,
-    } = func;
-
-    let fn_color = if constructor.is_present() {
-        errors.handle(FnColor::Sync.only(&sig))
-    } else {
-        errors.handle(FnColor::Async.only(&sig))
+        ctor,
+        name,
+        err_ctx,
+        self_arg,
+        fn_color,
+        async_call,
+        await_call,
+    } = match call {
+        Callable::Func(func) => Callee::from_func(func, &sig, &mut errors),
+        Callable::Ctor(ctor) => Callee::from_ctor(ctor, &sig, &mut errors),
     };
-
-    let span = sig.span();
 
     let Signature {
         ident,
@@ -94,19 +134,7 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
         ..
     } = generics;
 
-    let fn_name = property_key(&ident, &name);
-
-    let err_ctx = if constructor.is_present() {
-        format!("failed to construct {:?}", fn_name.as_str())
-    } else {
-        format!("failed to call function {:?}", fn_name.as_str())
-    };
-
-    let self_arg = errors.handle(self_arg(&inputs, span)).cloned();
-
     let return_ty = return_type(&output);
-
-    errors.handle(cast.option_check(&output, &ident));
 
     let mut arguments = Vec::<(Ident, Argument)>::new();
 
@@ -119,28 +147,34 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
             let (options, arg) = {
                 let mut arg = arg;
 
-                let (options, attrs) = Argument::filter_attrs(arg.attrs, &mut errors);
+                let (options, attrs) =
+                    Feature::<JsArgument>::collect(arg.attrs).non_fatal(&mut errors);
+
                 arg.attrs = attrs;
 
                 if options.len() > 1 {
-                    Error::custom("more than one #[argument] specified")
+                    JsArgument::error("more than one specified")
                         .with_span(&arg)
                         .pipe(|e| errors.push(e))
                 }
-                let options = options.into_iter().next().unwrap_or_default();
+
+                let options = match options.into_iter().next() {
+                    Some(Feature(JsArgument::Arg(options))) => options,
+                    None => Default::default(),
+                };
 
                 (options, arg)
             };
 
             let Pat::Ident(name) = &*arg.pat else {
-                Error::custom("patterns are not supported here")
+                JsArgument::error("patterns are not supported here")
                     .with_span(&arg.pat)
                     .pipe(|e| errors.push(e));
                 return FnArg::Typed(arg);
             };
 
             if let Some((sub, _)) = &name.subpat {
-                Error::custom("subpatterns are not supported here")
+                JsArgument::error("subpatterns are not supported here")
                     .with_span(sub)
                     .pipe(|e| errors.push(e));
             }
@@ -153,26 +187,11 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
 
     let arguments = arguments;
 
-    let this = match (this.as_deref(), constructor.is_present()) {
-        (Some(This::Self_), true) => {
-            let span = this.map(|s| s.span()).unwrap();
-            "must not specify `this` when `constructor` is specified\nremove `this`"
-                .pipe(Error::custom)
-                .with_span(&span)
-                .pipe(|e| errors.push(e));
-            This::Undefined
-        }
-        (Some(This::Self_), false) => This::Self_,
-        (Some(This::Undefined), _) => This::Undefined,
-        (None, true) => This::Undefined,
-        (None, false) => This::Self_,
-    };
-
     let arguments = BindArgs::new(this, &arguments, quote! { _rt }, quote! { self }, &err_ctx);
 
     let get_func = {
         let data = quote! { v8::Global<v8::Function> };
-        let getter = getter(&fn_name, TypeCast::V8, &data);
+        let getter = getter(&name, TypeCast::V8, &data);
         quote! {{
             #getter
             getter(scope, this)
@@ -224,7 +243,7 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
     };
 
     let call_fn = {
-        let call = if constructor.is_present() {
+        let call = if ctor {
             let unwrap = unwrap_v8_local("retval");
             quote! {
                 let scope = &mut _rt.handle_scope();
@@ -250,12 +269,6 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
                 #call
             }
         }
-    };
-
-    let (async_call, await_call) = if constructor.is_present() {
-        (quote! {}, quote! {})
-    } else {
-        (quote! { async }, quote! { .await })
     };
 
     let into_retval = match &output {
@@ -324,6 +337,31 @@ pub fn impl_function(func: Function, sig: Signature) -> Result<Vec<TokenStream>>
     Ok(vec![impl_])
 }
 
+impl From<Function> for Callable {
+    fn from(value: Function) -> Self {
+        Self::Func(value)
+    }
+}
+
+impl From<Constructor> for Callable {
+    fn from(value: Constructor) -> Self {
+        Self::Ctor(value)
+    }
+}
+
+#[derive(Debug, Clone, FromMeta)]
+enum JsArgument {
+    Arg(Argument),
+}
+
+impl FeatureName for JsArgument {
+    const PREFIX: &str = "js";
+
+    fn unit() -> Result<Self> {
+        JsArgument::from_word()
+    }
+}
+
 #[derive(Debug)]
 struct BindArgs {
     v8_globals: TokenStream,
@@ -363,32 +401,30 @@ impl BindArgs {
 
         if args
             .iter()
-            .any(|(_, Argument::Argument { spread, .. })| spread.is_present())
+            .any(|(_, Argument { spread, .. })| spread.is_present())
         {
-            let casts = args
-                .iter()
-                .map(|(ident, Argument::Argument { cast, spread })| {
-                    let name = ident.to_string();
-                    if spread.is_present() {
-                        let err = format!("failed to serialize item in argument {name:?}");
-                        let var = cast.into_v8_local("arg", "__scope");
-                        quote! {
-                            for arg in #ident {
-                                let arg = #var.context(#err).context(#ctx)?;
-                                let arg = v8::Global::new(__scope, arg);
-                                __args.push(arg);
-                            }
-                        }
-                    } else {
-                        let err = format!("failed to serialize argument {name:?}");
-                        let var = cast.into_v8_local(&name, "__scope");
-                        quote! {
-                            let #ident = #var.context(#err).context(#ctx)?;
-                            let #ident = v8::Global::new(__scope, #ident);
-                            __args.push(#ident);
+            let casts = args.iter().map(|(ident, Argument { cast, spread })| {
+                let name = ident.to_string();
+                if spread.is_present() {
+                    let err = format!("failed to serialize item in argument {name:?}");
+                    let var = cast.into_v8_local("arg", "__scope");
+                    quote! {
+                        for arg in #ident {
+                            let arg = #var.context(#err).context(#ctx)?;
+                            let arg = v8::Global::new(__scope, arg);
+                            __args.push(arg);
                         }
                     }
-                });
+                } else {
+                    let err = format!("failed to serialize argument {name:?}");
+                    let var = cast.into_v8_local(&name, "__scope");
+                    quote! {
+                        let #ident = #var.context(#err).context(#ctx)?;
+                        let #ident = v8::Global::new(__scope, #ident);
+                        __args.push(#ident);
+                    }
+                }
+            });
 
             let v8_globals = quote! {{
                 #scope
@@ -402,7 +438,7 @@ impl BindArgs {
 
             Self { v8_globals, kind }
         } else {
-            let casts = args.iter().map(|(ident, Argument::Argument { cast, .. })| {
+            let casts = args.iter().map(|(ident, Argument { cast, .. })| {
                 let name = ident.to_string();
                 let err = format!("failed to serialize argument {name:?}");
                 let var = cast.into_v8_local(&name, "__scope");

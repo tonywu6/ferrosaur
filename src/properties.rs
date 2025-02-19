@@ -1,37 +1,33 @@
 use std::borrow::Cow;
 
-use darling::{util::SpannedValue, Error, FromMeta, Result};
+use darling::{
+    error::Accumulator,
+    util::{Flag, SpannedValue},
+    FromMeta, Result,
+};
 use heck::ToLowerCamelCase;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, Block, FnArg, Generics, Ident, ImplItem, ImplItemFn,
-    ItemImpl, Receiver, ReturnType, Signature, Token, Type,
+    parse::{Parse, Parser},
+    punctuated::Punctuated,
+    FnArg, Generics, Ident, ImplItem, ImplItemFn, ItemImpl, Receiver, ReturnType, Signature, Token,
+    Type,
 };
 use tap::Pipe;
 
-use crate::util::{use_prelude, BailWithErrors, FromMetaEnum};
+use crate::{
+    util::{use_prelude, FatalErrors, Feature, FeatureEnum, FeatureName},
+    Properties,
+};
 
 mod function;
 mod property;
 
-use self::{
-    function::{impl_function, Function},
-    property::{impl_property, Property},
-};
+pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
+    let errors = Accumulator::default();
 
-#[derive(Debug, Default, Clone, Copy, FromMeta)]
-#[darling(rename_all = "lowercase")]
-enum TypeCast {
-    #[default]
-    Serde,
-    V8,
-    #[darling(rename = "v8::nullish")]
-    V8Nullish,
-}
-
-pub fn properties(_: TokenStream, item: ItemImpl) -> Result<TokenStream> {
-    let mut errors = Error::accumulator();
+    let (item, mut errors) = ItemImpl::parse.parse2(item).or_fatal(errors)?;
 
     errors.handle(only_inherent_impl(&item));
 
@@ -80,13 +76,13 @@ pub fn properties(_: TokenStream, item: ItemImpl) -> Result<TokenStream> {
 
 fn impl_item(item: ImplItem) -> Result<TokenStream> {
     let ImplItem::Fn(func) = item else {
-        return "#[properties] supports only fn items\nmove this item to another impl block"
-            .pipe(Error::custom)
+        return "only fn items are supported\nmove this item to another impl block"
+            .pipe(Properties::error)
             .with_span(&item)
             .pipe(Err);
     };
 
-    let mut errors = Error::accumulator();
+    let mut errors = Accumulator::default();
 
     let ImplItemFn {
         attrs,
@@ -96,31 +92,31 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
         block,
     } = func;
 
-    errors.handle(no_fn_body(&block));
+    errors.handle(if !block.stmts.is_empty() {
+        Properties::error("fn body should be empty")
+            .with_span(&block)
+            .pipe(Err)
+    } else {
+        Ok(())
+    });
 
     errors.handle(if defaultness.is_some() {
-        Error::custom("fn cannot be `default` here")
+        Properties::error("fn cannot be `default` here")
             .with_span(&defaultness)
             .pipe(Err)
     } else {
         Ok(())
     });
 
-    let (items, attrs) = PropertyType::filter_attrs(attrs, &mut errors);
+    let ((Feature(prop), attrs), errors) =
+        Feature::<JsProperty>::exactly_one(attrs).or_fatal(errors)?;
 
-    let (item, errors) = match items.len() {
-        1 => Ok(items.into_iter().next().unwrap()),
-        _ => Error::custom("must be either #[property] or #[function]")
-            .with_span(&sig)
-            .pipe(Err),
+    let (impl_, errors) = match prop {
+        JsProperty::Prop(Feature(prop)) => property::impl_property(prop, sig),
+        JsProperty::Func(Feature(func)) => function::impl_function(func.into(), sig),
+        JsProperty::New(Feature(ctor)) => function::impl_function(ctor.into(), sig),
     }
-    .or_bail_with(errors)?;
-
-    let (impl_, errors) = match item {
-        PropertyType::Property(prop) => impl_property(prop, sig),
-        PropertyType::Function(func) => impl_function(func, sig),
-    }
-    .or_bail_with(errors)?;
+    .or_fatal(errors)?;
 
     errors.finish()?;
 
@@ -132,159 +128,58 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
 }
 
 #[derive(Debug, Clone, FromMeta)]
-enum PropertyType {
-    Property(Property),
-    Function(Function),
+enum JsProperty {
+    Prop(Feature<Property>),
+    Func(Feature<Function>),
+    New(Feature<Constructor>),
 }
 
-impl FromMetaEnum for PropertyType {
-    fn test(name: &str) -> bool {
-        matches!(name, "property" | "function")
-    }
-
-    fn from_unit(name: &str) -> Result<Self> {
-        match name {
-            "property" => Ok(Self::Property(Default::default())),
-            "function" => Ok(Self::Function(Default::default())),
-            name => Err(Error::unknown_value(name)),
-        }
-    }
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Property {
+    name: Option<SpannedValue<String>>,
+    with_setter: Flag,
+    #[darling(default)]
+    cast: TypeCast,
 }
 
-fn only_inherent_impl(item: &ItemImpl) -> Result<()> {
-    let mut errors = Error::accumulator();
-
-    if item.defaultness.is_some() {
-        Error::custom("#[properties] impl cannot be `default`")
-            .with_span(&item.defaultness)
-            .pipe(|e| errors.push(e));
-    }
-
-    if item.unsafety.is_some() {
-        Error::custom("#[properties] impl cannot be `unsafe`")
-            .with_span(&item.unsafety)
-            .pipe(|e| errors.push(e));
-    }
-
-    if let Some((_, ty, _)) = &item.trait_ {
-        Error::custom("#[properties] cannot be used on a trait impl")
-            .with_span(ty)
-            .pipe(|e| errors.push(e));
-    }
-
-    errors.finish()
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Function {
+    name: Option<SpannedValue<String>>,
+    #[darling(default)]
+    this: This,
+    #[darling(default)]
+    cast: TypeCast,
 }
 
-fn no_fn_body(block: &Block) -> Result<()> {
-    if !block.stmts.is_empty() {
-        Error::custom("fn body should be empty")
-            .with_span(block)
-            .pipe(Err)
-    } else {
-        Ok(())
-    }
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Constructor {
+    class: Option<SpannedValue<String>>,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum FnColor {
-    Sync,
-    Async,
+#[derive(Debug, Default, Clone, Copy, FromMeta)]
+struct Argument {
+    #[darling(default)]
+    cast: TypeCast,
+    spread: Flag,
 }
 
-impl FnColor {
-    fn only(self, sig: &Signature) -> Result<TokenStream> {
-        let mut errors = Error::accumulator();
-
-        macro_rules! deny {
-            ($attr:ident, $msg:literal) => {
-                if sig.$attr.is_some() {
-                    darling::Error::custom($msg)
-                        .with_span(&sig.$attr)
-                        .pipe(|e| errors.push(e));
-                }
-            };
-        }
-
-        deny!(constness, "fn cannot be `const` here");
-        deny!(unsafety, "fn cannot be `unsafe` here");
-        deny!(abi, "fn cannot be `extern` here");
-        deny!(variadic, "fn cannot be variadic here");
-
-        match self {
-            FnColor::Sync => {
-                if sig.asyncness.is_some() {
-                    Error::custom("fn cannot be `async` here")
-                        .with_span(&sig.asyncness)
-                        .pipe(|e| errors.push(e));
-                }
-            }
-            FnColor::Async => {
-                if sig.asyncness.is_none() {
-                    Error::custom("fn is required to be `async` here")
-                        .with_span(&sig.fn_token)
-                        .pipe(|e| errors.push(e));
-                }
-            }
-        }
-
-        errors.finish_with(match self {
-            FnColor::Sync => quote! {},
-            FnColor::Async => {
-                let async_ = sig.asyncness;
-                quote! { #async_ }
-            }
-        })
-    }
+#[derive(Debug, Default, Clone, Copy, FromMeta)]
+#[darling(rename_all = "lowercase")]
+enum TypeCast {
+    V8,
+    #[darling(rename = "v8::nullish")]
+    V8Nullish,
+    #[default]
+    Serde,
 }
 
-fn self_arg(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receiver> {
-    match inputs.first() {
-        Some(FnArg::Receiver(recv)) => {
-            if recv.reference.is_none() || recv.mutability.is_some() {
-                Error::custom("must be `&self`").with_span(recv).pipe(Err)
-            } else {
-                Ok(recv)
-            }
-        }
-        Some(FnArg::Typed(ty)) => Error::custom("must have `&self` as the first argument")
-            .with_span(ty)
-            .pipe(Err),
-        None => Error::custom("missing `&self` as the first argument")
-            .with_span(&sig)
-            .pipe(Err),
-    }
-}
-
-fn return_type(ty: &ReturnType) -> TokenStream {
-    match ty {
-        ReturnType::Type(_, ty) => quote! { #ty },
-        ReturnType::Default => quote! { () },
-    }
-}
-
-fn property_key<'a>(
-    src: &Ident,
-    alt: &'a Option<SpannedValue<String>>,
-) -> Cow<'a, SpannedValue<String>> {
-    match alt.as_ref() {
-        Some(ident) => Cow::Borrowed(ident),
-        None => src
-            .to_string()
-            .to_lower_camel_case()
-            .pipe(|s| SpannedValue::new(s, src.span()))
-            .pipe(Cow::Owned),
-    }
-}
-
-fn embedded_key<K: AsRef<str>>(key: &SpannedValue<K>) -> TokenStream {
-    let span = key.span();
-    let key = (**key).as_ref();
-    let inner = quote_spanned! { span => #key };
-    if key.is_ascii() {
-        quote! { ascii_str!(#inner) }
-    } else {
-        quote! { FastString::from_static(#inner) }
-    }
+#[derive(Debug, Default, Clone, Copy, FromMeta)]
+enum This {
+    #[darling(rename = "self")]
+    #[default]
+    Self_,
+    #[darling(rename = "undefined")]
+    Undefined,
 }
 
 impl TypeCast {
@@ -354,7 +249,7 @@ impl TypeCast {
         }
     }
 
-    fn option_check<S: Spanned>(&self, ty: &ReturnType, ident: S) -> Result<()> {
+    fn option_check<F: FeatureName>(&self, ty: &ReturnType) -> Result<()> {
         fn may_be_option(ty: &Type) -> bool {
             match ty {
                 Type::Path(path) => match path.path.segments.last() {
@@ -374,7 +269,7 @@ impl TypeCast {
                         "otherwise, remove `Option`",
                     ]
                     .join("\n")
-                    .pipe(Error::custom)
+                    .pipe(F::error)
                     .with_span(ty)
                     .pipe(Err)
                 } else {
@@ -386,19 +281,140 @@ impl TypeCast {
                     Ok(())
                 } else {
                     "`cast(v8::nullish)` requires `Option<...>` as a return type"
-                        .pipe(Error::custom)
+                        .pipe(F::error)
                         .with_span(&ty)
                         .pipe(Err)
                 }
             }
-            (TypeCast::V8 | TypeCast::V8Nullish, ReturnType::Default) => {
-                "must specify a return type when `cast(v8...)` is specified"
-                    .pipe(Error::custom)
-                    .with_span(&ident)
-                    .pipe(Err)
-            }
+            (TypeCast::V8 | TypeCast::V8Nullish, ReturnType::Default) => Ok(()),
             (TypeCast::Serde, _) => Ok(()),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum FnColor {
+    Sync,
+    Async,
+}
+
+impl FnColor {
+    fn only<F: FeatureName>(self, sig: &Signature) -> Result<TokenStream> {
+        let mut errors = Accumulator::default();
+
+        macro_rules! deny {
+            ($attr:ident, $msg:literal) => {
+                if sig.$attr.is_some() {
+                    F::error($msg)
+                        .with_span(&sig.$attr)
+                        .pipe(|e| errors.push(e));
+                }
+            };
+        }
+
+        deny!(constness, "fn cannot be `const` here");
+        deny!(unsafety, "fn cannot be `unsafe` here");
+        deny!(abi, "fn cannot be `extern` here");
+        deny!(variadic, "fn cannot be variadic here");
+
+        match self {
+            FnColor::Sync => {
+                if sig.asyncness.is_some() {
+                    F::error("fn cannot be `async` here")
+                        .with_span(&sig.asyncness)
+                        .pipe(|e| errors.push(e));
+                }
+            }
+            FnColor::Async => {
+                if sig.asyncness.is_none() {
+                    F::error("fn is required to be `async` here")
+                        .with_span(&sig.fn_token)
+                        .pipe(|e| errors.push(e));
+                }
+            }
+        }
+
+        errors.finish_with(match self {
+            FnColor::Sync => quote! {},
+            FnColor::Async => {
+                let async_ = sig.asyncness;
+                quote! { #async_ }
+            }
+        })
+    }
+}
+
+fn only_inherent_impl(item: &ItemImpl) -> Result<()> {
+    let mut errors = Accumulator::default();
+
+    if item.defaultness.is_some() {
+        Properties::error("impl cannot be `default`")
+            .with_span(&item.defaultness)
+            .pipe(|e| errors.push(e));
+    }
+
+    if item.unsafety.is_some() {
+        Properties::error("impl cannot be `unsafe`")
+            .with_span(&item.unsafety)
+            .pipe(|e| errors.push(e));
+    }
+
+    if let Some((_, ty, _)) = &item.trait_ {
+        Properties::error("cannot be a trait impl")
+            .with_span(ty)
+            .pipe(|e| errors.push(e));
+    }
+
+    errors.finish()
+}
+
+fn self_arg<F: FeatureName>(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receiver> {
+    match inputs.first() {
+        Some(FnArg::Receiver(recv)) => {
+            if recv.reference.is_none() || recv.mutability.is_some() {
+                F::error("must be `&self`").with_span(recv).pipe(Err)
+            } else {
+                Ok(recv)
+            }
+        }
+        Some(FnArg::Typed(ty)) => F::error("must have `&self` as the first argument")
+            .with_span(ty)
+            .pipe(Err),
+        None => F::error("missing `&self` as the first argument")
+            .with_span(&sig)
+            .pipe(Err),
+    }
+}
+
+fn return_type(ty: &ReturnType) -> TokenStream {
+    match ty {
+        ReturnType::Type(_, ty) => quote! { #ty },
+        ReturnType::Default => quote! { () },
+    }
+}
+
+fn property_key<'a>(
+    src: &Ident,
+    alt: &'a Option<SpannedValue<String>>,
+) -> Cow<'a, SpannedValue<String>> {
+    match alt.as_ref() {
+        Some(ident) => Cow::Borrowed(ident),
+        None => src
+            .to_string()
+            .to_lower_camel_case()
+            .pipe(|s| SpannedValue::new(s, src.span()))
+            .pipe(Cow::Owned),
+    }
+}
+
+fn embedded_key<K: AsRef<str>>(key: &SpannedValue<K>) -> TokenStream {
+    let span = key.span();
+    let key = (**key).as_ref();
+    let inner = quote_spanned! {span => #key };
+    if key.is_ascii() {
+        quote! { ascii_str!(#inner) }
+    } else {
+        quote! { FastString::from_static(#inner) }
     }
 }
 
@@ -477,5 +493,49 @@ where
             this.set(scope, prop, data);
             Ok(())
         }
+    }
+}
+
+impl FeatureName for JsProperty {
+    const PREFIX: &str = "js";
+
+    fn unit() -> Result<Self> {
+        JsProperty::from_word()
+    }
+}
+
+impl FeatureEnum for JsProperty {
+    const PREFIXES: &[&str] = &[Property::PREFIX, Function::PREFIX, Constructor::PREFIX];
+}
+
+impl FeatureName for Property {
+    const PREFIX: &str = "prop";
+
+    fn unit() -> Result<Self> {
+        Ok(Default::default())
+    }
+}
+
+impl FeatureName for Function {
+    const PREFIX: &str = "func";
+
+    fn unit() -> Result<Self> {
+        Ok(Default::default())
+    }
+}
+
+impl FeatureName for Constructor {
+    const PREFIX: &str = "new";
+
+    fn unit() -> Result<Self> {
+        Ok(Default::default())
+    }
+}
+
+impl FeatureName for Argument {
+    const PREFIX: &str = "arg";
+
+    fn unit() -> Result<Self> {
+        Argument::from_word()
     }
 }

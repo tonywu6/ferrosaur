@@ -4,10 +4,11 @@
 - [x] transparent Option
   - [x] Option check
 - [x] errors in function
-- [ ] error prefixes
-- [ ] revisit FromMetaEnum
-- [ ] namespaced macros
+- [x] error prefixes
+- [x] revisit FromMetaEnum
+- [x] namespaced macros
 - [ ] url("...")?
 - [ ] generics usability
 - [ ] include fast string
-- [ ] revisit constructor
+- [x] revisit constructor
+- [x] ~~constructor -> class?~~

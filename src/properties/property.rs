@@ -1,28 +1,17 @@
-use darling::{
-    util::{Flag, SpannedValue},
-    Error, FromMeta, Result,
-};
+use darling::{Error, Result};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{spanned::Spanned, Generics, ReturnType, Signature};
 use tap::Pipe;
 
-use crate::properties::setter;
+use crate::util::FeatureName;
 
-use super::{getter, property_key, return_type, self_arg, FnColor, TypeCast};
-
-#[derive(Debug, Default, Clone, FromMeta)]
-pub struct Property {
-    name: Option<SpannedValue<String>>,
-    with_setter: Flag,
-    #[darling(default)]
-    cast: TypeCast,
-}
+use super::{getter, property_key, return_type, self_arg, setter, FnColor, Property};
 
 pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>> {
     let mut errors = Error::accumulator();
 
-    errors.handle(FnColor::Sync.only(&sig));
+    errors.handle(FnColor::Sync.only::<Property>(&sig));
 
     let span = sig.span();
 
@@ -40,10 +29,10 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         ..
     } = generics;
 
-    let self_arg = errors.handle(self_arg(&inputs, span));
+    let self_arg = errors.handle(self_arg::<Property>(&inputs, span));
 
     errors.handle(if inputs.len() > 1 {
-        Error::custom("#[property] fn must not have extra arguments")
+        Property::error("fn must not have extra arguments")
             .with_span(&inputs.get(1))
             .pipe(Err)
     } else {
@@ -59,14 +48,14 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
     let return_ty = return_type(&output);
 
     errors.handle(if matches!(output, ReturnType::Default) {
-        Error::custom("#[property] fn must have an explicit return type")
+        Property::error("fn must have an explicit return type")
             .with_span(&ident)
             .pipe(Err)
     } else {
         Ok(())
     });
 
-    errors.handle(cast.option_check(&output, &ident));
+    errors.handle(cast.option_check::<Property>(&output));
 
     let prop = property_key(&ident, &name);
 

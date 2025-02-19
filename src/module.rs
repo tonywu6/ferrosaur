@@ -1,9 +1,15 @@
-use darling::{util::Flag, Error, FromDeriveInput, FromMeta, Result};
+use darling::{Error, FromDeriveInput, Result};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Attribute, DeriveInput, Ident, Visibility};
+use syn::{
+    parse::{Parse, Parser},
+    Attribute, DeriveInput, Ident, Visibility,
+};
 
-use crate::util::{inner_mod_name, use_prelude, FromMetaList, NoGenerics, BailWithErrors};
+use crate::{
+    util::{inner_mod_name, use_prelude, FatalErrors, NoGenerics},
+    ImportMetaUrl, Module, ModuleOptions,
+};
 
 #[derive(Debug, Clone, FromDeriveInput)]
 #[darling(supports(struct_unit), forward_attrs)]
@@ -15,63 +21,20 @@ struct ModuleStruct {
     generics: NoGenerics,
 }
 
-#[derive(Debug, Clone)]
-struct Import {
-    import: String,
-    options: Options,
-}
-
-#[derive(Debug, Clone, FromMeta)]
-struct Options {
-    fast: Flag,
-    side: Flag,
-    #[darling(default)]
-    url: ImportMetaUrl,
-}
-
-#[derive(Debug, Default, Clone, Copy, FromMeta)]
-#[darling(rename_all = "lowercase")]
-enum ImportMetaUrl {
-    #[default]
-    Preserve,
-    Cwd,
-}
-
-impl FromMeta for Import {
-    fn from_list(items: &[darling::ast::NestedMeta]) -> darling::Result<Self> {
-        let (import, options) = items
-            .split_first()
-            .ok_or_else(|| Error::custom("must specify the file path to import"))?;
-
-        let mut errors = Error::accumulator();
-
-        let import = errors.handle(String::from_nested_meta(import));
-        let options = errors.handle(Options::from_list(options));
-
-        errors.finish()?;
-
-        let import = import.unwrap();
-        let options = options.unwrap();
-
-        Ok(Self { import, options })
-    }
-}
-
-pub fn module(attr: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
+pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
     let errors = Error::accumulator();
 
-    let (item, errors) = ModuleStruct::from_derive_input(item).or_bail_with(errors)?;
-
-    let (attr, errors) = Import::from_meta_list(attr).or_bail_with(errors)?;
+    let (item, errors) = DeriveInput::parse.parse2(item).or_fatal(errors)?;
+    let (item, errors) = ModuleStruct::from_derive_input(&item).or_fatal(errors)?;
 
     let ModuleStruct {
         ident, vis, attrs, ..
     } = item;
 
-    let Import {
+    let Module {
         import,
-        options: Options { fast, side, url },
-    } = attr;
+        options: ModuleOptions { fast, side, url },
+    } = module;
 
     let use_prelude = use_prelude();
 

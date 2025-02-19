@@ -1,13 +1,19 @@
 use darling::{Error, FromDeriveInput, Result};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Attribute, DeriveInput, Ident, Visibility};
+use syn::{
+    parse::{Parse, Parser},
+    Attribute, DeriveInput, Ident, Visibility,
+};
 
-use crate::util::{inner_mod_name, use_prelude, BailWithErrors, NoGenerics};
+use crate::{
+    util::{inner_mod_name, use_prelude, FatalErrors, NoGenerics},
+    GlobalThis,
+};
 
 #[derive(Debug, Clone, FromDeriveInput)]
 #[darling(supports(struct_unit), forward_attrs)]
-struct Options {
+struct GlobalThisStruct {
     ident: Ident,
     vis: Visibility,
     attrs: Vec<Attribute>,
@@ -15,12 +21,13 @@ struct Options {
     generics: NoGenerics,
 }
 
-pub fn global_this(_: TokenStream, item: &DeriveInput) -> Result<TokenStream> {
+pub fn global_this(_: GlobalThis, item: TokenStream) -> Result<TokenStream> {
     let errors = Error::accumulator();
 
-    let (item, errors) = Options::from_derive_input(item).or_bail_with(errors)?;
+    let (item, errors) = DeriveInput::parse.parse2(item).or_fatal(errors)?;
+    let (item, errors) = GlobalThisStruct::from_derive_input(&item).or_fatal(errors)?;
 
-    let Options {
+    let GlobalThisStruct {
         ident, vis, attrs, ..
     } = item;
 
