@@ -7,8 +7,8 @@ use syn::{
 };
 
 use crate::{
-    util::{inner_mod_name, use_prelude, FatalErrors, NoGenerics},
-    FastString, ImportMetaUrl, Module, ModuleOptions,
+    util::{inner_mod_name, use_prelude, FatalErrors, NoGenerics, Positional},
+    FastString, ImportMetaUrl, Module, ModuleOptions, ModulePath,
 };
 
 #[derive(Debug, Clone, FromDeriveInput)]
@@ -31,15 +31,14 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
         ident, vis, attrs, ..
     } = item;
 
-    let Module {
-        import,
-        options:
-            ModuleOptions {
-                url,
-                side_module,
-                fast,
-            },
-    } = module;
+    let Module(Positional {
+        head: ModulePath(import),
+        rest: ModuleOptions {
+            url,
+            side_module,
+            fast,
+        },
+    }) = module;
 
     let use_prelude = use_prelude();
 

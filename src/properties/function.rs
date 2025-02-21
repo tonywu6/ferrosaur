@@ -1,4 +1,4 @@
-use darling::{error::Accumulator, util::SpannedValue, FromMeta, Result};
+use darling::{error::Accumulator, FromMeta, Result};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
@@ -7,12 +7,15 @@ use syn::{
 };
 use tap::{Pipe, Tap};
 
-use crate::util::{
+use crate::{
     tpl::{return_type, Arity, Call},
-    Feature, FeatureName, NonFatalErrors,
+    util::{Feature, FeatureName, NonFatalErrors, Positional, PropertyKey},
 };
 
-use super::{property_key, self_arg, Argument, Constructor, Function, MaybeAsync, This, TypeCast};
+use super::{
+    property_key, self_arg, Argument, Constructor, Function, FunctionOptions, MaybeAsync, This,
+    TypeCast,
+};
 
 pub enum Callable {
     Func(Function),
@@ -23,7 +26,7 @@ struct Callee {
     cast: TypeCast,
     this: This,
     ctor: bool,
-    name: SpannedValue<String>,
+    name: PropertyKey<String>,
     err_ctx: String,
     self_arg: Option<Receiver>,
     fn_color: MaybeAsync,
@@ -31,18 +34,21 @@ struct Callee {
 
 impl Callee {
     fn from_func(
-        Function { name, this, cast }: Function,
+        Function(Positional {
+            head: name,
+            rest: FunctionOptions { this, cast },
+        }): Function,
         sig: &Signature,
         errors: &mut Accumulator,
     ) -> Self {
         errors.handle(cast.option_check::<Function>(&sig.output));
-        let name = property_key(&sig.ident, &name);
+        let name = property_key(&sig.ident, name);
         Self {
             cast,
             this,
             ctor: false,
-            err_ctx: format!("failed to call function {:?}", name.as_str()),
-            name: name.into_owned(),
+            err_ctx: format!("failed to call function {name:?}"),
+            name,
             self_arg: errors
                 .handle(self_arg::<Function>(&sig.inputs, sig.span()))
                 .cloned(),
@@ -58,20 +64,20 @@ impl Callee {
         let cast = TypeCast::V8;
         errors.handle(cast.option_check::<Constructor>(&sig.output));
         let name = match (class, &sig.output) {
-            (Some(class), _) => class,
+            (Some(class), _) => PropertyKey::String(class),
             (None, ReturnType::Type(_, ty)) => {
                 let ident = match &**ty {
                     Type::Path(ty) => ty.path.segments.last().map(|s| &s.ident),
                     _ => None,
                 };
                 if let Some(ident) = ident {
-                    SpannedValue::new(ident.to_string(), ident.span())
+                    PropertyKey::String(ident.to_string())
                 } else {
                     "cannot infer class name from return type\nspecify `#[js(new(class(...)))]` instead"
                         .pipe(Constructor::error)
                         .with_span(ty)
                         .pipe(|e| errors.push(e));
-                    property_key(&sig.ident, &None).into_owned()
+                    property_key(&sig.ident, Default::default())
                 }
             }
             (None, ReturnType::Default) => {
@@ -79,14 +85,14 @@ impl Callee {
                     .pipe(Constructor::error)
                     .with_span(&sig.ident)
                     .pipe(|e| errors.push(e));
-                property_key(&sig.ident, &None).into_owned()
+                property_key(&sig.ident, Default::default())
             }
         };
         Self {
             cast,
             this: This::Self_,
             ctor: true,
-            err_ctx: format!("failed to construct {:?}", name.as_str()),
+            err_ctx: format!("failed to construct {name:?}"),
             name,
             self_arg: errors
                 .handle(self_arg::<Constructor>(&sig.inputs, sig.span()))

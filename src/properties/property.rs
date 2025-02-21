@@ -4,12 +4,12 @@ use quote::{format_ident, quote};
 use syn::{spanned::Spanned, Generics, ReturnType, Signature};
 use tap::Pipe;
 
-use crate::util::{
+use crate::{
     tpl::{getter, return_type, setter},
-    FeatureName, NonFatalErrors,
+    util::{FeatureName, NonFatalErrors, Positional},
 };
 
-use super::{property_key, self_arg, MaybeAsync, Property};
+use super::{property_key, self_arg, MaybeAsync, Property, PropertyOptions};
 
 pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>> {
     let mut errors = Error::accumulator();
@@ -44,11 +44,10 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         Ok(())
     });
 
-    let Property {
-        name,
-        cast,
-        with_setter,
-    } = prop;
+    let Property(Positional {
+        head: name,
+        rest: PropertyOptions { cast, with_setter },
+    }) = prop;
 
     let return_ty = return_type(&output);
 
@@ -62,11 +61,11 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
 
     errors.handle(cast.option_check::<Property>(&output));
 
-    let prop = property_key(&ident, &name);
+    let prop = property_key(&ident, name);
 
     let getter = {
         let getter = getter(&prop, cast, &return_ty);
-        let err = format!("failed to get property {:?}", prop.as_str());
+        let err = format!("failed to get property {prop:?}");
         quote! {
             fn #ident <#params> (
                 #self_arg,
@@ -87,7 +86,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         let ident = format_ident!("set_{}", ident);
         let data = quote! { &#return_ty };
         let setter = setter(&prop, cast, &data);
-        let err = format!("failed to set property {:?}", prop.as_str());
+        let err = format!("failed to set property {prop:?}");
         quote! {
             fn #ident <#params> (
                 #self_arg,

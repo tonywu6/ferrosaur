@@ -10,11 +10,13 @@ use syn::{
     TypePath,
 };
 use tap::Pipe;
+use util::{FromPositional, Positional};
 
 mod fast_string;
 mod global_this;
 mod module;
 mod properties;
+mod tpl;
 mod util;
 mod value;
 
@@ -50,10 +52,22 @@ enum JsItem {
     Properties(Feature<Properties>),
 }
 
+#[derive(Debug, Clone, FromMeta)]
+struct Module(Positional<ModulePath, ModuleOptions>);
+
 #[derive(Debug, Clone)]
-struct Module {
-    import: String,
-    options: ModuleOptions,
+struct ModulePath(String);
+
+impl FromPositional for ModulePath {
+    fn fallback() -> Result<Self> {
+        Err(Module::error("must specify a file path to import"))
+    }
+}
+
+impl FromMeta for ModulePath {
+    fn from_string(value: &str) -> Result<Self> {
+        Ok(Self(value.into()))
+    }
 }
 
 #[derive(Debug, Default, Clone, FromMeta)]
@@ -144,26 +158,6 @@ impl FromMeta for FastString {
 
 #[derive(Debug, Clone)]
 struct InnerType(Box<Type>);
-
-impl FromMeta for Module {
-    fn from_list(items: &[NestedMeta]) -> Result<Self> {
-        let (import, options) = items
-            .split_first()
-            .ok_or_else(|| Module::error("must specify a file path to import"))?;
-
-        let mut errors = Error::accumulator();
-
-        let import = errors.handle(String::from_nested_meta(import));
-        let options = errors.handle(ModuleOptions::from_list(options));
-
-        errors.finish()?;
-
-        let import = import.unwrap();
-        let options = options.unwrap();
-
-        Ok(Self { import, options })
-    }
-}
 
 impl FromMeta for InnerType {
     fn from_list(items: &[NestedMeta]) -> Result<Self> {

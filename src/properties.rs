@@ -1,23 +1,18 @@
-use std::borrow::Cow;
-
-use darling::{
-    error::Accumulator,
-    util::{Flag, SpannedValue},
-    FromMeta, Result,
-};
+use darling::{error::Accumulator, util::Flag, FromMeta, Result};
 use heck::ToLowerCamelCase;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
     parse::{Parse, Parser},
     punctuated::Punctuated,
-    FnArg, Generics, Ident, ImplItem, ImplItemFn, ItemImpl, Receiver, Signature, Token,
+    FnArg, Generics, Ident, ImplItem, ImplItemFn, ItemImpl, Lit, Meta, Receiver, Signature, Token,
 };
 use tap::Pipe;
 
 use crate::{
     util::{
-        tpl::TypeCast, use_prelude, FatalErrors, Feature, FeatureEnum, FeatureName, MergeErrors,
+        use_prelude, FatalErrors, Feature, FeatureEnum, FeatureName, FromPositional, MergeErrors,
+        Positional, PropertyKey, TypeCast,
     },
     Properties,
 };
@@ -135,17 +130,24 @@ enum JsProperty {
     New(Feature<Constructor>),
 }
 
+#[derive(Debug, Default, Clone)]
+struct PropertyName(Option<PropertyKey<String>>);
+
 #[derive(Debug, Default, Clone, FromMeta)]
-struct Property {
-    name: Option<SpannedValue<String>>,
+struct Property(Positional<PropertyName, PropertyOptions>);
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct PropertyOptions {
     with_setter: Flag,
     #[darling(default)]
     cast: TypeCast,
 }
 
 #[derive(Debug, Default, Clone, FromMeta)]
-struct Function {
-    name: Option<SpannedValue<String>>,
+struct Function(Positional<PropertyName, FunctionOptions>);
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct FunctionOptions {
     #[darling(default)]
     this: This,
     #[darling(default)]
@@ -154,7 +156,7 @@ struct Function {
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Constructor {
-    class: Option<SpannedValue<String>>,
+    class: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Copy, FromMeta)]
@@ -171,6 +173,26 @@ enum This {
     Self_,
     #[darling(rename = "undefined")]
     Undefined,
+}
+
+impl FromMeta for PropertyName {
+    fn from_meta(item: &Meta) -> Result<Self> {
+        Ok(Self(Some(<_>::from_meta(item)?)))
+    }
+
+    fn from_value(value: &Lit) -> Result<Self> {
+        Ok(Self(Some(<_>::from_value(value)?)))
+    }
+
+    fn from_none() -> Option<Self> {
+        Some(Self(None))
+    }
+}
+
+impl FromPositional for PropertyName {
+    fn fallback() -> Result<Self> {
+        Ok(Self(None))
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -290,17 +312,13 @@ fn self_arg<F: FeatureName>(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) ->
     }
 }
 
-fn property_key<'a>(
-    src: &Ident,
-    alt: &'a Option<SpannedValue<String>>,
-) -> Cow<'a, SpannedValue<String>> {
-    match alt.as_ref() {
-        Some(ident) => Cow::Borrowed(ident),
+fn property_key(src: &Ident, alt: PropertyName) -> PropertyKey<String> {
+    match alt.0 {
+        Some(key) => key,
         None => src
             .to_string()
             .to_lower_camel_case()
-            .pipe(|s| SpannedValue::new(s, src.span()))
-            .pipe(Cow::Owned),
+            .pipe(PropertyKey::String),
     }
 }
 

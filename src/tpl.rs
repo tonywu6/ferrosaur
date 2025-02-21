@@ -1,20 +1,8 @@
-use darling::{util::SpannedValue, FromMeta, Result};
-use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, quote_spanned, ToTokens};
-use syn::{ReturnType, Type};
-use tap::Pipe;
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote, ToTokens};
+use syn::ReturnType;
 
-use crate::util::FeatureName;
-
-#[derive(Debug, Default, Clone, Copy, FromMeta)]
-#[darling(rename_all = "lowercase")]
-pub enum TypeCast {
-    V8,
-    #[darling(rename = "v8::nullish")]
-    V8Nullish,
-    #[default]
-    Serde,
-}
+use crate::util::{PropertyKey, TypeCast};
 
 impl TypeCast {
     #[allow(clippy::wrong_self_convention)]
@@ -82,51 +70,9 @@ impl TypeCast {
             },
         }
     }
-
-    pub fn option_check<F: FeatureName>(&self, ty: &ReturnType) -> Result<()> {
-        fn may_be_option(ty: &Type) -> bool {
-            match ty {
-                Type::Path(path) => match path.path.segments.last() {
-                    None => false,
-                    Some(name) => name.ident == "Option",
-                },
-                Type::Paren(..) => false, // now why would you do that
-                _ => false,
-            }
-        }
-        match (self, ty) {
-            (TypeCast::V8, ReturnType::Type(_, ty)) => {
-                if may_be_option(ty) {
-                    [
-                        "this will always return Some(...) because of `cast(v8)`",
-                        "to check `null` and `undefined` at runtime, use `cast(v8::nullish)`",
-                        "otherwise, remove `Option`",
-                    ]
-                    .join("\n")
-                    .pipe(F::error)
-                    .with_span(ty)
-                    .pipe(Err)
-                } else {
-                    Ok(())
-                }
-            }
-            (TypeCast::V8Nullish, ReturnType::Type(_, ty)) => {
-                if may_be_option(ty) {
-                    Ok(())
-                } else {
-                    "`cast(v8::nullish)` requires `Option<...>` as a return type"
-                        .pipe(F::error)
-                        .with_span(&ty)
-                        .pipe(Err)
-                }
-            }
-            (TypeCast::V8 | TypeCast::V8Nullish, ReturnType::Default) => Ok(()),
-            (TypeCast::Serde, _) => Ok(()),
-        }
-    }
 }
 
-pub fn getter<K, T>(prop: &SpannedValue<K>, cast: TypeCast, ty: T) -> TokenStream
+pub fn getter<K, T>(prop: &PropertyKey<K>, cast: TypeCast, ty: T) -> TokenStream
 where
     K: AsRef<str>,
     T: ToTokens,
@@ -134,7 +80,6 @@ where
     let unwrap_data = unwrap_v8_local("data");
     let from_data = cast.from_v8_local("data", "scope");
     let return_ok = cast.into_return_value("data");
-    let prop_name = embedded_key(prop);
     quote! {
         #[inline(always)]
         fn getter<'a, T>(
@@ -148,7 +93,7 @@ where
             let scope = &mut v8::TryCatch::new(scope);
             let this = TryInto::try_into(this)
                 .context("failed to cast `self` as a v8::Object")?;
-            let prop = #prop_name.v8_string(scope)?;
+            let prop = #prop;
             let prop = Into::into(prop);
             let data = this.get(scope, prop);
             let data = #unwrap_data;
@@ -159,12 +104,11 @@ where
     }
 }
 
-pub fn setter<K, T>(prop: &SpannedValue<K>, cast: TypeCast, ty: T) -> TokenStream
+pub fn setter<K, T>(prop: &PropertyKey<K>, cast: TypeCast, ty: T) -> TokenStream
 where
     K: AsRef<str>,
     T: ToTokens,
 {
-    let prop_name = embedded_key(prop);
     let into_data = cast.into_v8_local("data", "scope");
     quote! {
         #[inline(always)]
@@ -181,22 +125,11 @@ where
                 .context("failed to convert into v8 value")?;
             let this = TryInto::try_into(this)
                 .context("failed to cast `self` as a v8::Object")?;
-            let prop = #prop_name.v8_string(scope)?;
+            let prop = #prop;
             let prop = Into::into(prop);
             this.set(scope, prop, data);
             Ok(())
         }
-    }
-}
-
-pub fn embedded_key<K: AsRef<str>>(key: &SpannedValue<K>) -> TokenStream {
-    let span = key.span();
-    let key = (**key).as_ref();
-    let inner = quote_spanned! {span => #key };
-    if key.is_ascii() {
-        quote! { ascii_str!(#inner) }
-    } else {
-        quote! { FastString::from_static(#inner) }
     }
 }
 
@@ -224,7 +157,7 @@ pub fn return_type(ty: &ReturnType) -> TokenStream {
 
 #[derive(Debug, Clone)]
 pub struct Call {
-    pub name: SpannedValue<String>,
+    pub name: PropertyKey<String>,
     pub ctor: bool,
     pub arity: Arity,
 }
@@ -248,9 +181,8 @@ impl Call {
         };
 
         let get_bind = {
-            let prop = SpannedValue::new("bind", Span::call_site());
             let data = quote! { v8::Global<v8::Function> };
-            let getter = getter(&prop, TypeCast::V8, &data);
+            let getter = getter(&"bind".into(), TypeCast::V8, &data);
             quote! {{
                 #getter
                 getter(scope, this)
@@ -295,6 +227,7 @@ impl Call {
         let unwrap_retval = unwrap_v8_local("retval");
 
         quote! {
+            #[inline(always)]
             fn call<'a, T>(
                 scope: &mut v8::HandleScope<'a>,
                 this: T,

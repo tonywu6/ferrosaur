@@ -7,11 +7,10 @@ use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse::Parser, punctuated::Punctuated, spanned::Spanned, token::Paren, Attribute, Expr,
-    Generics, Ident, Lit, Meta, Path, PathSegment, Token, VisRestricted, Visibility,
+    Generics, Ident, Lit, Meta, Path, PathSegment, ReturnType, Token, Type, VisRestricted,
+    Visibility,
 };
 use tap::{Conv, Pipe, Tap};
-
-pub mod tpl;
 
 pub trait TokenStreamResult {
     fn or_error(self) -> TokenStream;
@@ -215,6 +214,268 @@ where
             .pipe(|tokens| Attribute::parse_outer.parse2(tokens))?
             .pipe(|attrs| Self::exactly_one(attrs, attr.span()))
             .pipe(|result| Ok(result?.0))
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Positional<P, T> {
+    pub head: P,
+    pub rest: T,
+}
+
+pub trait FromPositional: Sized {
+    fn fallback() -> Result<Self>;
+}
+
+impl<P, T> FromMeta for Positional<P, T>
+where
+    P: FromMeta + FromPositional,
+    T: FromMeta,
+{
+    fn from_list(items: &[NestedMeta]) -> Result<Self> {
+        match items.len() {
+            0 => Ok(Self {
+                head: P::fallback()?,
+                rest: T::from_list(&[])?,
+            }),
+            _ => {
+                match T::from_list(items)
+                    .and_then(|rest| P::fallback().map(|head| Self { head, rest }))
+                {
+                    Ok(this) => Ok(this),
+                    Err(e1) => match T::from_list(&items[1..]).and_then(|rest| {
+                        P::from_nested_meta(&items[0]).map(|head| Self { head, rest })
+                    }) {
+                        Ok(this) => Ok(this),
+                        Err(e2) => Err(Error::multiple(vec![e2, e1])),
+                    },
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, FromMeta)]
+#[darling(rename_all = "lowercase")]
+pub enum TypeCast {
+    V8,
+    #[darling(rename = "v8::nullish")]
+    V8Nullish,
+    #[default]
+    Serde,
+}
+
+impl TypeCast {
+    pub fn option_check<F: FeatureName>(&self, ty: &ReturnType) -> Result<()> {
+        fn may_be_option(ty: &Type) -> bool {
+            match ty {
+                Type::Path(path) => match path.path.segments.last() {
+                    None => false,
+                    Some(name) => name.ident == "Option",
+                },
+                Type::Paren(..) => false, // now why would you do that
+                _ => false,
+            }
+        }
+        match (self, ty) {
+            (TypeCast::V8, ReturnType::Type(_, ty)) => {
+                if may_be_option(ty) {
+                    [
+                        "this will always return Some(...) because of `cast(v8)`",
+                        "to check `null` and `undefined` at runtime, use `cast(v8::nullish)`",
+                        "otherwise, remove `Option`",
+                    ]
+                    .join("\n")
+                    .pipe(F::error)
+                    .with_span(ty)
+                    .pipe(Err)
+                } else {
+                    Ok(())
+                }
+            }
+            (TypeCast::V8Nullish, ReturnType::Type(_, ty)) => {
+                if may_be_option(ty) {
+                    Ok(())
+                } else {
+                    "`cast(v8::nullish)` requires `Option<...>` as a return type"
+                        .pipe(F::error)
+                        .with_span(&ty)
+                        .pipe(Err)
+                }
+            }
+            (TypeCast::V8 | TypeCast::V8Nullish, ReturnType::Default) => Ok(()),
+            (TypeCast::Serde, _) => Ok(()),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum PropertyKey<K> {
+    String(K),
+    Number(f64),
+    Symbol(WellKnown),
+}
+
+#[derive(Clone, Copy, FromMeta)]
+#[darling(rename_all = "camelCase")]
+pub enum WellKnown {
+    AsyncIterator,
+    HasInstance,
+    IsConcatSpreadable,
+    Iterator,
+    Match,
+    Replace,
+    Search,
+    Split,
+    ToPrimitive,
+    ToStringTag,
+    Unscopables,
+}
+
+impl FromMeta for PropertyKey<String> {
+    fn from_meta(item: &Meta) -> Result<Self> {
+        let key = if let Meta::Path(path) = item {
+            if path.segments.len() == 2 {
+                let head = path.segments.get(0).unwrap();
+                let tail = path.segments.get(1).unwrap();
+                if head.ident == "Symbol" && head.arguments.is_none() && tail.arguments.is_none() {
+                    WellKnown::from_string(&tail.ident.to_string())
+                        .map_err(|e| e.with_span(tail))?
+                        .pipe(Self::Symbol)
+                        .pipe(Some)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some(key) = key {
+            Ok(key)
+        } else {
+            "property key must be a string, a number, or Symbol::*"
+                .pipe(Error::custom)
+                .with_span(item)
+                .pipe(Err)
+        }
+    }
+
+    fn from_value(value: &Lit) -> Result<Self> {
+        match value {
+            Lit::Str(s) => Self::from_string(&s.value()),
+            Lit::Char(ch) => Self::from_char(ch.value()),
+            Lit::Int(n) => Ok(Self::Number(n.base10_parse()?)),
+            Lit::Float(f) => Ok(Self::Number(f.base10_parse()?)),
+            _ => Err(Error::unexpected_lit_type(value)),
+        }
+        .map_err(|e| e.with_span(value))
+    }
+
+    fn from_string(value: &str) -> Result<Self> {
+        Ok(Self::String(value.into()))
+    }
+
+    fn from_char(value: char) -> Result<Self> {
+        Ok(Self::String(value.into()))
+    }
+}
+
+impl<'a> From<&'a str> for PropertyKey<&'a str> {
+    fn from(value: &'a str) -> Self {
+        Self::String(value)
+    }
+}
+
+impl<T> std::fmt::Debug for PropertyKey<T>
+where
+    T: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::String(s) => s.fmt(f),
+            Self::Number(n) => n.fmt(f),
+            Self::Symbol(s) => s.fmt(f),
+        }
+    }
+}
+
+impl std::fmt::Debug for WellKnown {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AsyncIterator => f.write_str("[Symbol.asyncIterator]"),
+            Self::HasInstance => f.write_str("[Symbol.hasInstance]"),
+            Self::IsConcatSpreadable => f.write_str("[Symbol.isConcatSpreadable]"),
+            Self::Iterator => f.write_str("[Symbol.iterator]"),
+            Self::Match => f.write_str("[Symbol.match]"),
+            Self::Replace => f.write_str("[Symbol.replace]"),
+            Self::Search => f.write_str("[Symbol.search]"),
+            Self::Split => f.write_str("[Symbol.split]"),
+            Self::ToPrimitive => f.write_str("[Symbol.toPrimitive]"),
+            Self::ToStringTag => f.write_str("[Symbol.toStringTag]"),
+            Self::Unscopables => f.write_str("[Symbol.unscopables]"),
+        }
+    }
+}
+
+impl<K: AsRef<str>> ToTokens for PropertyKey<K> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let rendered = match self {
+            Self::String(key) => {
+                let key = key.as_ref();
+                if key.is_ascii() {
+                    quote! {
+                        ascii_str!(#key).v8_string(scope)?
+                    }
+                } else {
+                    quote! {
+                        FastString::from_static(#key).v8_string(scope)?
+                    }
+                }
+            }
+            Self::Number(num) => {
+                quote! {
+                    v8::Number::new(scope, #num)
+                }
+            }
+            Self::Symbol(sym) => match sym {
+                WellKnown::AsyncIterator => quote! {
+                    v8::Symbol::get_async_iterator(scope)
+                },
+                WellKnown::HasInstance => quote! {
+                    v8::Symbol::get_has_instance(scope)
+                },
+                WellKnown::IsConcatSpreadable => quote! {
+                    v8::Symbol::get_is_concat_spreadable(scope)
+                },
+                WellKnown::Iterator => quote! {
+                    v8::Symbol::get_iterator(scope)
+                },
+                WellKnown::Match => quote! {
+                    v8::Symbol::get_match(scope)
+                },
+                WellKnown::Replace => quote! {
+                    v8::Symbol::get_replace(scope)
+                },
+                WellKnown::Search => quote! {
+                    v8::Symbol::get_search(scope)
+                },
+                WellKnown::Split => quote! {
+                    v8::Symbol::get_split(scope)
+                },
+                WellKnown::ToPrimitive => quote! {
+                    v8::Symbol::get_to_primitive(scope)
+                },
+                WellKnown::ToStringTag => quote! {
+                    v8::Symbol::get_to_string_tag(scope)
+                },
+                WellKnown::Unscopables => quote! {
+                    v8::Symbol::get_unscopables(scope)
+                },
+            },
+        };
+        tokens.extend(rendered);
     }
 }
 
