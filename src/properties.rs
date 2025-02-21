@@ -109,7 +109,7 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
     });
 
     let ((Feature(prop), attrs), errors) =
-        Feature::<JsProperty>::exactly_one(attrs).or_fatal(errors)?;
+        Feature::<JsProperty>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
 
     let (impl_, errors) = match prop {
         JsProperty::Prop(Feature(prop)) => property::impl_property(prop, sig),

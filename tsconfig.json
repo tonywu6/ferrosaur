@@ -8,6 +8,5 @@
     "allowJs": true,
     "strict": true,
     "noEmit": true
-  },
-  "files": ["tests/main.js"]
+  }
 }

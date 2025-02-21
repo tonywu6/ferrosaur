@@ -1,6 +1,6 @@
 use darling::{Error, FromDeriveInput, Result};
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{
     parse::{Parse, Parser},
     Attribute, DeriveInput, Ident, Visibility,
@@ -8,7 +8,7 @@ use syn::{
 
 use crate::{
     util::{inner_mod_name, use_prelude, FatalErrors, NoGenerics},
-    ImportMetaUrl, Module, ModuleOptions,
+    FastString, ImportMetaUrl, Module, ModuleOptions,
 };
 
 #[derive(Debug, Clone, FromDeriveInput)]
@@ -33,7 +33,12 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
 
     let Module {
         import,
-        options: ModuleOptions { fast, side, url },
+        options:
+            ModuleOptions {
+                url,
+                side_module,
+                fast,
+            },
     } = module;
 
     let use_prelude = use_prelude();
@@ -55,24 +60,34 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
         pub struct #ident(v8::Global<v8::Object>);
     };
 
-    let const_module_src = if fast.is_present() {
-        quote! {
-            pub const MODULE_SRC: FastStaticString = ascii_str_include!(#import);
+    let const_module_src = match fast {
+        Some(FastString::FastUnsafeDebug) => {
+            let this_crate = format_ident!("{}", env!("CARGO_CRATE_NAME"));
+            quote! {
+                pub const MODULE_SRC: FastStaticString =
+                    ::#this_crate::unsafe_include_fast_string!(#import);
+            }
         }
-    } else {
-        quote! {
-            pub const MODULE_SRC: &str = include_str!(#import);
+        Some(FastString::Fast) => {
+            quote! {
+                #[allow(long_running_const_eval)]
+                pub const MODULE_SRC: FastStaticString = ascii_str_include!(#import);
+            }
+        }
+        None => {
+            quote! {
+                pub const MODULE_SRC: &str = include_str!(#import);
+            }
         }
     };
 
-    let preload_ty = if fast.is_present() {
-        quote! {
+    let preload_ty = match fast {
+        Some(FastString::Fast | FastString::FastUnsafeDebug) => quote! {
             Result<(ModuleSpecifier, FastStaticString)>
-        }
-    } else {
-        quote! {
+        },
+        None => quote! {
             Result<(ModuleSpecifier, &'static str)>
-        }
+        },
     };
 
     let fn_url = quote! {
@@ -86,7 +101,7 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
         ImportMetaUrl::Preserve => quote! {
             #[inline(always)]
             fn url() -> Result<ModuleSpecifier> {
-                Result::Ok(#fn_url)
+                Ok(#fn_url)
             }
         },
         ImportMetaUrl::Cwd => quote! {
@@ -95,7 +110,13 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
                 let file = #fn_url;
                 let name = file.path().replace('/', "-");
                 let path = std::env::current_dir()?.join(name);
-                Result::Ok(ModuleSpecifier::from_file_path(path).unwrap())
+                Ok(ModuleSpecifier::from_file_path(path).unwrap())
+            }
+        },
+        ImportMetaUrl::Url(url) => quote! {
+            #[inline(always)]
+            fn url() -> Result<ModuleSpecifier> {
+                Ok(#url.parse()?)
             }
         },
     };
@@ -108,13 +129,13 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
         }
     };
 
-    let load_module_from_code = if side.is_present() {
+    let load_module_from_code = if side_module.is_present() {
         quote! { load_side_es_module_from_code }
     } else {
         quote! { load_main_es_module_from_code }
     };
 
-    let load_module_from_loader = if side.is_present() {
+    let load_module_from_loader = if side_module.is_present() {
         quote! { load_side_es_module }
     } else {
         quote! { load_main_es_module }
@@ -158,12 +179,12 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
                 }
 
                 pub fn preload() -> #preload_ty {
-                    Result::Ok((Self::url()?, Self::MODULE_SRC))
+                    Ok((Self::url()?, Self::MODULE_SRC))
                 }
 
                 #[inline(always)]
                 async fn evaluate(rt: &mut JsRuntime, id: ModuleId) -> Result<Self> {
-                    Result::Ok(Self({
+                    Ok(Self({
                         rt.mod_evaluate(id).await?;
                         rt.get_module_namespace(id)?
                     }))

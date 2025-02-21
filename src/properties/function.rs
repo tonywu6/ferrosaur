@@ -71,7 +71,7 @@ impl Callee {
                 if let Some(ident) = ident {
                     SpannedValue::new(ident.to_string(), ident.span())
                 } else {
-                    "cannot infer class name from return type\nspecify `#[js(new(class(...)))] instead`"
+                    "cannot infer class name from return type\nspecify `#[js(new(class(...)))]` instead"
                         .pipe(Constructor::error)
                         .with_span(ty)
                         .pipe(|e| errors.push(e));

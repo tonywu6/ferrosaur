@@ -1,9 +1,17 @@
-use darling::{ast::NestedMeta, util::Flag, Error, FromMeta, Result};
+use darling::{
+    ast::NestedMeta,
+    util::{path_to_string, Flag},
+    Error, FromMeta, Result,
+};
 use proc_macro2::TokenStream;
 use quote::format_ident;
-use syn::{punctuated::Punctuated, Meta, Path, PathSegment, Token, Type, TypePath};
+use syn::{
+    parse_macro_input, punctuated::Punctuated, Lit, LitStr, Meta, Path, PathSegment, Token, Type,
+    TypePath,
+};
 use tap::Pipe;
 
+mod fast_string;
 mod global_this;
 mod module;
 mod properties;
@@ -20,13 +28,13 @@ pub fn js(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_
 fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
     let errors = Error::accumulator();
 
-    let (js, errors) = Feature::<JsObject>::parse_macro_attribute(args).or_fatal(errors)?;
+    let (js, errors) = Feature::<JsItem>::parse_macro_attribute(args).or_fatal(errors)?;
 
     let (js, errors) = match js.0 {
-        JsObject::Module(Feature(module)) => module::module(module, item),
-        JsObject::GlobalThis(Feature(global_this)) => global_this::global_this(global_this, item),
-        JsObject::Value(Feature(value)) => value::value(value, item),
-        JsObject::Properties(Feature(properties)) => properties::properties(properties, item),
+        JsItem::Module(Feature(module)) => module::module(module, item),
+        JsItem::GlobalThis(Feature(global_this)) => global_this::global_this(global_this, item),
+        JsItem::Value(Feature(value)) => value::value(value, item),
+        JsItem::Properties(Feature(properties)) => properties::properties(properties, item),
     }
     .or_fatal(errors)?;
 
@@ -35,7 +43,7 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
 
 #[derive(Debug, Clone, FromMeta)]
 #[darling(rename_all = "snake_case")]
-enum JsObject {
+enum JsItem {
     Module(Feature<Module>),
     GlobalThis(Feature<GlobalThis>),
     Value(Feature<Value>),
@@ -63,18 +71,75 @@ struct Properties;
 
 #[derive(Debug, Clone, FromMeta)]
 struct ModuleOptions {
-    fast: Flag,
-    side: Flag,
     #[darling(default)]
     url: ImportMetaUrl,
+    side_module: Flag,
+    fast: Option<FastString>,
 }
 
-#[derive(Debug, Default, Clone, Copy, FromMeta)]
-#[darling(rename_all = "lowercase")]
+#[derive(Debug, Default, Clone)]
 enum ImportMetaUrl {
     #[default]
     Preserve,
     Cwd,
+    Url(String),
+}
+
+impl FromMeta for ImportMetaUrl {
+    fn from_list(items: &[NestedMeta]) -> Result<Self> {
+        match items.len() {
+            0 => Err(Error::too_few_items(1)),
+            1 => match &items[0] {
+                NestedMeta::Meta(meta) => match path_to_string(meta.path()).as_str() {
+                    "preserve" => Ok(Self::Preserve),
+                    "cwd" => Ok(Self::Cwd),
+                    other => Err(Error::unknown_field_with_alts(
+                        other,
+                        &["preserve", "cwd", "a string literal"],
+                    )),
+                },
+                NestedMeta::Lit(Lit::Str(lit)) => Ok(Self::Url(lit.value())),
+                NestedMeta::Lit(lit) => Err(Error::unexpected_lit_type(lit)),
+            },
+            _ => Err(Error::too_many_items(1)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum FastString {
+    Fast,
+    FastUnsafeDebug,
+}
+
+impl FromMeta for FastString {
+    fn from_list(items: &[NestedMeta]) -> Result<Self> {
+        match items.len() {
+            0 => Self::from_word(),
+            1 => {
+                let path = match &items[0] {
+                    NestedMeta::Meta(Meta::Path(path)) => path_to_string(path),
+                    NestedMeta::Lit(Lit::Str(lit)) => lit.value(),
+                    NestedMeta::Meta(Meta::List(_)) => {
+                        return Err(Error::unsupported_format("list"))
+                    }
+                    NestedMeta::Meta(Meta::NameValue(_)) => {
+                        return Err(Error::unsupported_format("name value"))
+                    }
+                    NestedMeta::Lit(lit) => return Err(Error::unexpected_lit_type(lit)),
+                };
+                match &*path {
+                    "unsafe_debug" => Ok(Self::FastUnsafeDebug),
+                    path => Err(Error::unknown_field_with_alts(path, &["unsafe_debug"])),
+                }
+            }
+            _ => Err(Error::too_many_items(1)),
+        }
+    }
+
+    fn from_word() -> Result<Self> {
+        Ok(Self::Fast)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -84,7 +149,7 @@ impl FromMeta for Module {
     fn from_list(items: &[NestedMeta]) -> Result<Self> {
         let (import, options) = items
             .split_first()
-            .ok_or_else(|| Module::error("must specify the file path to import"))?;
+            .ok_or_else(|| Module::error("must specify a file path to import"))?;
 
         let mut errors = Error::accumulator();
 
@@ -156,15 +221,15 @@ impl Default for InnerType {
     }
 }
 
-impl FeatureName for JsObject {
+impl FeatureName for JsItem {
     const PREFIX: &str = "js";
 
     fn unit() -> Result<Self> {
-        JsObject::from_word()
+        JsItem::from_word()
     }
 }
 
-impl FeatureEnum for JsObject {
+impl FeatureEnum for JsItem {
     const PREFIXES: &[&str] = &[
         Module::PREFIX,
         GlobalThis::PREFIX,
@@ -203,4 +268,10 @@ impl FeatureName for Properties {
     fn unit() -> Result<Self> {
         Ok(Self)
     }
+}
+
+#[proc_macro]
+pub fn unsafe_include_fast_string(args: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let path = parse_macro_input!(args as LitStr);
+    fast_string::unsafe_include_fast_string(path).into()
 }

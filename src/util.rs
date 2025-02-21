@@ -3,7 +3,7 @@ use darling::{
     Result,
 };
 use heck::ToSnakeCase;
-use proc_macro2::{TokenStream, TokenTree};
+use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse::Parser, punctuated::Punctuated, spanned::Spanned, token::Paren, Attribute, Expr,
@@ -166,17 +166,29 @@ impl<T> Feature<T>
 where
     T: FromMeta + FeatureEnum,
 {
-    pub fn exactly_one(attrs: Vec<Attribute>) -> Result<(Self, Vec<Attribute>)> {
+    pub fn exactly_one(attrs: Vec<Attribute>, span: Span) -> Result<(Self, Vec<Attribute>)> {
         let ((items, attrs), error) = Self::collect(attrs);
         if let Some(error) = error {
             return Err(error);
         };
         match items.len() {
             1 => Ok((items.into_iter().next().unwrap(), attrs)),
-            _ => format!("expected exactly one of {}", T::PREFIXES.join(", "))
-                .pipe(T::error)
-                .with_span(&quote! { #(#attrs)* })
-                .pipe(Err),
+            n => {
+                let span = if n == 0 {
+                    span
+                } else {
+                    quote! { #(#attrs)* }.span()
+                };
+                let choices = T::PREFIXES
+                    .iter()
+                    .map(|c| format!("#[{}({c})]", T::PREFIX))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("expected exactly one of {}", choices)
+                    .pipe(T::error)
+                    .with_span(&span)
+                    .pipe(Err)
+            }
         }
     }
 
@@ -184,7 +196,7 @@ where
         format_ident!("{}", T::PREFIX)
             .pipe(|name| quote! { #[#name(#attr)] })
             .pipe(|tokens| Attribute::parse_outer.parse2(tokens))?
-            .pipe(|attrs| Self::exactly_one(attrs))
+            .pipe(|attrs| Self::exactly_one(attrs, attr.span()))
             .pipe(|result| Ok(result?.0))
     }
 }

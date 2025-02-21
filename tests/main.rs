@@ -1,7 +1,7 @@
 use std::{rc::Rc, sync::Arc};
 
 use anyhow::Result;
-use deno_runtime::{deno_fs::RealFs, worker::MainWorker};
+use deno_runtime::{deno_fs::InMemoryFs, worker::MainWorker};
 use tap::Pipe;
 
 mod usage;
@@ -16,12 +16,12 @@ pub async fn deno() -> Result<(MainWorker, Main)> {
         worker::{MainWorker, WorkerServiceOptions},
     };
 
-    let fs = RealFs.pipe(Arc::new);
-
-    let permissions = RuntimePermissionDescriptorParser::new(fs.clone())
-        .pipe(|p| PermissionsContainer::new(Arc::new(p), Permissions::allow_all()));
+    let fs = Arc::new(InMemoryFs::default());
 
     let module_loader = Rc::new(StaticModuleLoader::default());
+
+    let permissions = RuntimePermissionDescriptorParser::new(fs.clone())
+        .pipe(|p| PermissionsContainer::new(Arc::new(p), Permissions::none_without_prompt()));
 
     let mut rt = MainWorker::bootstrap_from_options(
         Main::url()?,
