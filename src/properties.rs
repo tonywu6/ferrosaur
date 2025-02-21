@@ -17,7 +17,7 @@ use syn::{
 use tap::Pipe;
 
 use crate::{
-    util::{use_prelude, FatalErrors, Feature, FeatureEnum, FeatureName},
+    util::{use_prelude, FatalErrors, Feature, FeatureEnum, FeatureName, MergeErrors},
     Properties,
 };
 
@@ -293,13 +293,50 @@ impl TypeCast {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum FnColor {
+enum MaybeAsync {
     Sync,
-    Async,
+    Async(Token![async]),
 }
 
-impl FnColor {
-    fn only<F: FeatureName>(self, sig: &Signature) -> Result<TokenStream> {
+impl MaybeAsync {
+    fn only<F: FeatureName>(self, sig: &Signature) -> (Self, Option<darling::Error>) {
+        let mut errors = Accumulator::default();
+
+        let (color, error) = Self::some::<F>(sig);
+
+        if let Some(error) = error {
+            errors.push(error);
+        }
+
+        match self {
+            MaybeAsync::Sync => {
+                if let MaybeAsync::Async(span) = color {
+                    F::error("fn cannot be `async` here")
+                        .with_span(&span)
+                        .pipe(|e| errors.push(e));
+                }
+            }
+            MaybeAsync::Async(_) => {
+                if matches!(color, MaybeAsync::Sync) {
+                    F::error("fn is required to be `async` here")
+                        .with_span(&sig.fn_token)
+                        .pipe(|e| errors.push(e));
+                }
+            }
+        }
+
+        (color, errors.into_one())
+    }
+
+    fn some<F: FeatureName>(sig: &Signature) -> (Self, Option<darling::Error>) {
+        let color = match &sig.asyncness {
+            None => MaybeAsync::Sync,
+            Some(token) => MaybeAsync::Async(*token),
+        };
+        (color, Self::supported::<F>(sig).into_one())
+    }
+
+    fn supported<F: FeatureName>(sig: &Signature) -> Accumulator {
         let mut errors = Accumulator::default();
 
         macro_rules! deny {
@@ -317,30 +354,23 @@ impl FnColor {
         deny!(abi, "fn cannot be `extern` here");
         deny!(variadic, "fn cannot be variadic here");
 
-        match self {
-            FnColor::Sync => {
-                if sig.asyncness.is_some() {
-                    F::error("fn cannot be `async` here")
-                        .with_span(&sig.asyncness)
-                        .pipe(|e| errors.push(e));
-                }
-            }
-            FnColor::Async => {
-                if sig.asyncness.is_none() {
-                    F::error("fn is required to be `async` here")
-                        .with_span(&sig.fn_token)
-                        .pipe(|e| errors.push(e));
-                }
-            }
-        }
+        errors
+    }
 
-        errors.finish_with(match self {
-            FnColor::Sync => quote! {},
-            FnColor::Async => {
-                let async_ = sig.asyncness;
-                quote! { #async_ }
-            }
-        })
+    fn to_await(self) -> TokenStream {
+        match self {
+            Self::Async(_) => quote! { .await },
+            Self::Sync => quote! {},
+        }
+    }
+}
+
+impl ToTokens for MaybeAsync {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Self::Async(token) => tokens.extend(quote! { #token }),
+            Self::Sync => {}
+        }
     }
 }
 

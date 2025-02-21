@@ -57,18 +57,14 @@ async fn test_calc() -> Result<()> {
     let calc = main.calc(rt)?;
 
     let calc = calc
-        .add(16.0, rt)
-        .await?
-        .sub(4.0, rt)
-        .await?
-        .mul(7.0, rt)
-        .await?
-        .div(2.0, rt)
-        .await?;
+        .add(16.0, rt)?
+        .sub(4.0, rt)?
+        .mul(7.0, rt)?
+        .div(2.0, rt)?;
 
     assert_eq!(calc.value(rt)?, 42.0);
 
-    Global::new(rt).console(rt)?.log(&[calc.into()], rt).await?;
+    Global::new(rt).console(rt)?.log(&[calc.into()], rt)?;
 
     Ok(())
 }

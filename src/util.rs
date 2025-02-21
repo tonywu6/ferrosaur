@@ -58,6 +58,21 @@ impl<T> NonFatalErrors<T> for (T, Option<Error>) {
     }
 }
 
+pub trait MergeErrors {
+    fn into_one(self) -> Option<Error>;
+}
+
+impl MergeErrors for Accumulator {
+    fn into_one(self) -> Option<Error> {
+        let errors = self.into_inner();
+        if errors.is_empty() {
+            None
+        } else {
+            Some(Error::multiple(errors))
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Feature<T>(pub T);
 

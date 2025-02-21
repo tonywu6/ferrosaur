@@ -10,8 +10,8 @@ use tap::{Pipe, Tap};
 use crate::util::{Feature, FeatureName, NonFatalErrors};
 
 use super::{
-    getter, property_key, return_type, self_arg, unwrap_v8_local, Argument, Constructor, FnColor,
-    Function, This, TypeCast,
+    getter, property_key, return_type, self_arg, unwrap_v8_local, Argument, Constructor, Function,
+    MaybeAsync, This, TypeCast,
 };
 
 pub enum Callable {
@@ -26,9 +26,7 @@ struct Callee {
     name: SpannedValue<String>,
     err_ctx: String,
     self_arg: Option<Receiver>,
-    fn_color: Option<TokenStream>,
-    async_call: TokenStream,
-    await_call: TokenStream,
+    fn_color: MaybeAsync,
 }
 
 impl Callee {
@@ -48,9 +46,7 @@ impl Callee {
             self_arg: errors
                 .handle(self_arg::<Function>(&sig.inputs, sig.span()))
                 .cloned(),
-            fn_color: errors.handle(FnColor::Async.only::<Function>(sig)),
-            async_call: quote! { async },
-            await_call: quote! { .await },
+            fn_color: MaybeAsync::some::<Function>(sig).non_fatal(errors),
         }
     }
 
@@ -95,9 +91,7 @@ impl Callee {
             self_arg: errors
                 .handle(self_arg::<Constructor>(&sig.inputs, sig.span()))
                 .cloned(),
-            fn_color: errors.handle(FnColor::Sync.only::<Constructor>(sig)),
-            async_call: quote! {},
-            await_call: quote! {},
+            fn_color: MaybeAsync::Sync.only::<Constructor>(sig).non_fatal(errors),
         }
     }
 }
@@ -113,8 +107,6 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
         err_ctx,
         self_arg,
         fn_color,
-        async_call,
-        await_call,
     } = match call {
         Callable::Func(func) => Callee::from_func(func, &sig, &mut errors),
         Callable::Ctor(ctor) => Callee::from_ctor(ctor, &sig, &mut errors),
@@ -243,23 +235,33 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
     };
 
     let call_fn = {
-        let call = if ctor {
-            let unwrap = unwrap_v8_local("retval");
-            quote! {
-                let scope = &mut _rt.handle_scope();
-                let scope = &mut v8::TryCatch::new(scope);
-                let callable = v8::Local::<v8::Function>::new(scope, callable);
-                let retval = callable.new_instance(scope, &[]);
-                let retval = #unwrap;
-                let retval = retval.cast::<v8::Value>();
-                Ok(v8::Global::new(scope, retval))
+        let call = match fn_color {
+            MaybeAsync::Sync => {
+                let unwrap = unwrap_v8_local("retval");
+                let call = if ctor {
+                    quote! {{
+                        callable.new_instance(scope, &[])
+                    }}
+                } else {
+                    quote! {{
+                        let recv = v8::undefined(scope);
+                        callable.call(scope, recv.into(), &[])
+                    }}
+                };
+                quote! {
+                    let scope = &mut _rt.handle_scope();
+                    let scope = &mut v8::TryCatch::new(scope);
+                    let callable = v8::Local::<v8::Function>::new(scope, callable);
+                    let retval = #call;
+                    let retval = #unwrap;
+                    let retval = retval.cast::<v8::Value>();
+                    Ok(v8::Global::new(scope, retval))
+                }
             }
-        } else {
-            quote! {
+            MaybeAsync::Async(_) => quote! {
                 let future = _rt.call_with_args(&callable, &[]);
-                _rt.run_event_loop(Default::default()).await?;
-                future.await
-            }
+                _rt.with_event_loop_promise(future, Default::default()).await
+            },
         };
         quote! {
             fn call(
@@ -300,6 +302,8 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
 
     let casts = arguments.v8_globals;
 
+    let await_call = fn_color.to_await();
+
     let impl_ = quote! {
         #fn_color fn #ident <#params> (
             #self_arg,
@@ -312,7 +316,7 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
             #bind_fn
 
             #[inline(always)]
-            #async_call #call_fn
+            #fn_color #call_fn
 
             let args = #casts;
 
