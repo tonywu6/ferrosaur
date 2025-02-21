@@ -11,6 +11,8 @@ use syn::{
 };
 use tap::{Conv, Pipe, Tap};
 
+pub mod tpl;
+
 pub trait TokenStreamResult {
     fn or_error(self) -> TokenStream;
 }

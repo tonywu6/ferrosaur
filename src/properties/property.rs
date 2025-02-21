@@ -4,14 +4,19 @@ use quote::{format_ident, quote};
 use syn::{spanned::Spanned, Generics, ReturnType, Signature};
 use tap::Pipe;
 
-use crate::util::{FeatureName, NonFatalErrors};
+use crate::util::{
+    tpl::{getter, return_type, setter},
+    FeatureName, NonFatalErrors,
+};
 
-use super::{getter, property_key, return_type, self_arg, setter, MaybeAsync, Property};
+use super::{property_key, self_arg, MaybeAsync, Property};
 
 pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>> {
     let mut errors = Error::accumulator();
 
-    MaybeAsync::Sync.only::<Property>(&sig).non_fatal(&mut errors);
+    MaybeAsync::Sync
+        .only::<Property>(&sig)
+        .non_fatal(&mut errors);
 
     let span = sig.span();
 

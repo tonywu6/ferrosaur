@@ -7,12 +7,12 @@ use syn::{
 };
 use tap::{Pipe, Tap};
 
-use crate::util::{Feature, FeatureName, NonFatalErrors};
-
-use super::{
-    getter, property_key, return_type, self_arg, unwrap_v8_local, Argument, Constructor, Function,
-    MaybeAsync, This, TypeCast,
+use crate::util::{
+    tpl::{return_type, Arity, Call},
+    Feature, FeatureName, NonFatalErrors,
 };
+
+use super::{property_key, self_arg, Argument, Constructor, Function, MaybeAsync, This, TypeCast};
 
 pub enum Callable {
     Func(Function),
@@ -179,98 +179,17 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
 
     let arguments = arguments;
 
-    let arguments = BindArgs::new(this, &arguments, quote! { _rt }, quote! { self }, &err_ctx);
+    let (casts, arity) = scan_args(this, &arguments, quote! { _rt }, quote! { self }, &err_ctx);
 
-    let get_func = {
-        let data = quote! { v8::Global<v8::Function> };
-        let getter = getter(&name, TypeCast::V8, &data);
-        quote! {{
-            #getter
-            getter(scope, this)
-                .context("failed to get function object")?
-        }}
-    };
+    let fn_call = Call { name, ctor, arity }.render();
 
-    let get_bind = {
-        let prop = SpannedValue::new("bind", Span::call_site());
-        let data = quote! { v8::Global<v8::Function> };
-        let getter = getter(&prop, TypeCast::V8, &data);
-        quote! {{
-            #getter
-            getter(scope, this)
-                .context("failed to get Function.property.bind from function")?
-        }}
-    };
-
-    let bind_fn = {
-        let args_ty = arguments.to_type();
-        let args_v8_local = arguments.to_v8_local(quote! { args });
-        let unwrap = unwrap_v8_local("callable");
-        quote! {
-            fn bind<'a, T>(
-                scope: &mut v8::HandleScope<'a>,
-                this: T,
-                args: #args_ty,
-            ) -> Result<v8::Global<v8::Function>>
-            where
-                T: TryInto<v8::Local<'a, v8::Object>>,
-                T::Error: std::error::Error + Send + Sync + 'static,
-            {
-                let func = #get_func;
-                let bind = {
-                    let this = v8::Local::new(scope, &func);
-                    #get_bind
-                };
-                let bind = v8::Local::new(scope, bind);
-                let func = v8::Local::new(scope, func);
-                let func = Into::into(func);
-                let args = #args_v8_local;
-                let scope = &mut v8::TryCatch::new(scope);
-                let callable = bind.call(scope, func, &args);
-                let callable = #unwrap;
-                let callable = callable.try_cast()?;
-                Ok(v8::Global::new(scope, callable))
-            }
-        }
-    };
-
-    let call_fn = {
-        let call = match fn_color {
-            MaybeAsync::Sync => {
-                let unwrap = unwrap_v8_local("retval");
-                let call = if ctor {
-                    quote! {{
-                        callable.new_instance(scope, &[])
-                    }}
-                } else {
-                    quote! {{
-                        let recv = v8::undefined(scope);
-                        callable.call(scope, recv.into(), &[])
-                    }}
-                };
-                quote! {
-                    let scope = &mut _rt.handle_scope();
-                    let scope = &mut v8::TryCatch::new(scope);
-                    let callable = v8::Local::<v8::Function>::new(scope, callable);
-                    let retval = #call;
-                    let retval = #unwrap;
-                    let retval = retval.cast::<v8::Value>();
-                    Ok(v8::Global::new(scope, retval))
-                }
-            }
-            MaybeAsync::Async(_) => quote! {
-                let future = _rt.call_with_args(&callable, &[]);
-                _rt.with_event_loop_promise(future, Default::default()).await
-            },
-        };
-        quote! {
-            fn call(
-                _rt: &mut JsRuntime,
-                callable: v8::Global<v8::Function>
-            ) -> Result<v8::Global<v8::Value>> {
-                #call
-            }
-        }
+    let await_retval = match fn_color {
+        MaybeAsync::Async(_) => quote! {
+            _rt.resolve(retval).await?
+        },
+        MaybeAsync::Sync => quote! {
+            retval
+        },
     };
 
     let into_retval = match &output {
@@ -300,10 +219,6 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
         }
     });
 
-    let casts = arguments.v8_globals;
-
-    let await_call = fn_color.to_await();
-
     let impl_ = quote! {
         #fn_color fn #ident <#params> (
             #self_arg,
@@ -312,25 +227,18 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
         ) -> Result<#return_ty>
         #where_clause
         {
-            #[inline(always)]
-            #bind_fn
-
-            #[inline(always)]
-            #fn_color #call_fn
-
             let args = #casts;
 
-            let callable = {
+            let retval = {
+                #fn_call
                 let scope = &mut _rt.handle_scope();
                 let this = AsRef::<v8::Global<_>>::as_ref(self);
                 let this = v8::Local::new(scope, this);
-                bind(scope, this, args)
+                call(scope, this, args)
                     .context(#err_ctx)?
             };
 
-            let retval = call(_rt, callable)
-                #await_call
-                .context(#err_ctx)?;
+            let retval = #await_retval;
 
             #into_retval
         }
@@ -366,128 +274,91 @@ impl FeatureName for JsArgument {
     }
 }
 
-#[derive(Debug)]
-struct BindArgs {
-    v8_globals: TokenStream,
-    kind: BoundArgs,
-}
+fn scan_args<T>(
+    this: This,
+    args: &[(Ident, Argument)],
+    rt: T,
+    self_: T,
+    ctx: &str,
+) -> (TokenStream, Arity)
+where
+    T: ToTokens,
+{
+    let scope = quote! {
+        let __scope = &mut #rt.handle_scope();
+    };
 
-#[derive(Debug, Clone, Copy)]
-enum BoundArgs {
-    Vec,
-    Array(usize),
-}
+    let this = match this {
+        This::Self_ => quote! {{
+            let this = AsRef::<v8::Global<_>>::as_ref(#self_);
+            let this = v8::Local::new(__scope, this);
+            let this = this.try_cast::<v8::Value>()
+                .context("failed to serialize `this`")
+                .context(#ctx)?;
+            v8::Global::new(__scope, this)
+        }},
+        This::Undefined => quote! {{
+            let this = v8::undefined(__scope);
+            let this = this.cast::<v8::Value>();
+            v8::Global::new(__scope, this)
+        }},
+    };
 
-impl BindArgs {
-    fn new<T>(this: This, args: &[(Ident, Argument)], rt: T, self_: T, ctx: &str) -> Self
-    where
-        T: ToTokens,
+    if args
+        .iter()
+        .any(|(_, Argument { spread, .. })| spread.is_present())
     {
-        let scope = quote! {
-            let __scope = &mut #rt.handle_scope();
-        };
-
-        let this = match this {
-            This::Self_ => quote! {{
-                let this = AsRef::<v8::Global<_>>::as_ref(#self_);
-                let this = v8::Local::new(__scope, this);
-                let this = this.try_cast::<v8::Value>()
-                    .context("failed to serialize `this`")
-                    .context(#ctx)?;
-                v8::Global::new(__scope, this)
-            }},
-            This::Undefined => quote! {{
-                let this = v8::undefined(__scope);
-                let this = this.cast::<v8::Value>();
-                v8::Global::new(__scope, this)
-            }},
-        };
-
-        if args
-            .iter()
-            .any(|(_, Argument { spread, .. })| spread.is_present())
-        {
-            let casts = args.iter().map(|(ident, Argument { cast, spread })| {
-                let name = ident.to_string();
-                if spread.is_present() {
-                    let err = format!("failed to serialize item in argument {name:?}");
-                    let var = cast.into_v8_local("arg", "__scope");
-                    quote! {
-                        for arg in #ident {
-                            let arg = #var.context(#err).context(#ctx)?;
-                            let arg = v8::Global::new(__scope, arg);
-                            __args.push(arg);
-                        }
-                    }
-                } else {
-                    let err = format!("failed to serialize argument {name:?}");
-                    let var = cast.into_v8_local(&name, "__scope");
-                    quote! {
-                        let #ident = #var.context(#err).context(#ctx)?;
-                        let #ident = v8::Global::new(__scope, #ident);
-                        __args.push(#ident);
+        let casts = args.iter().map(|(ident, Argument { cast, spread })| {
+            let name = ident.to_string();
+            if spread.is_present() {
+                let err = format!("failed to serialize item in argument {name:?}");
+                let var = cast.into_v8_local("arg", "__scope");
+                quote! {
+                    for arg in #ident {
+                        let arg = #var.context(#err).context(#ctx)?;
+                        let arg = v8::Global::new(__scope, arg);
+                        __args.push(arg);
                     }
                 }
-            });
-
-            let v8_globals = quote! {{
-                #scope
-                let mut __args = Vec::new();
-                __args.push(#this);
-                #(#casts)*
-                __args
-            }};
-
-            let kind = BoundArgs::Vec;
-
-            Self { v8_globals, kind }
-        } else {
-            let casts = args.iter().map(|(ident, Argument { cast, .. })| {
-                let name = ident.to_string();
+            } else {
                 let err = format!("failed to serialize argument {name:?}");
                 let var = cast.into_v8_local(&name, "__scope");
                 quote! {
                     let #ident = #var.context(#err).context(#ctx)?;
                     let #ident = v8::Global::new(__scope, #ident);
+                    __args.push(#ident);
                 }
-            });
+            }
+        });
 
-            let names = args.iter().map(|(name, _)| name);
+        let casts = quote! {{
+            #scope
+            let mut __args = Vec::new();
+            __args.push(#this);
+            #(#casts)*
+            __args
+        }};
 
-            let v8_globals = quote! {{
-                #scope
-                #(#casts)*
-                [#this, #(#names),*]
-            }};
+        (casts, Arity::Variadic)
+    } else {
+        let casts = args.iter().map(|(ident, Argument { cast, .. })| {
+            let name = ident.to_string();
+            let err = format!("failed to serialize argument {name:?}");
+            let var = cast.into_v8_local(&name, "__scope");
+            quote! {
+                let #ident = #var.context(#err).context(#ctx)?;
+                let #ident = v8::Global::new(__scope, #ident);
+            }
+        });
 
-            let kind = BoundArgs::Array(args.len() + 1);
+        let names = args.iter().map(|(name, _)| name);
 
-            Self { v8_globals, kind }
-        }
-    }
+        let casts = quote! {{
+            #scope
+            #(#casts)*
+            [#this, #(#names),*]
+        }};
 
-    fn to_v8_local(&self, ident: impl ToTokens) -> TokenStream {
-        match self.kind {
-            BoundArgs::Vec => quote! {
-                #ident
-                    .iter()
-                    .map(|arg| v8::Local::new(scope, arg))
-                    .collect::<Vec<_>>()
-            },
-            BoundArgs::Array(_) => quote! {
-                #ident.map(|arg| v8::Local::new(scope, arg))
-            },
-        }
-    }
-
-    fn to_type(&self) -> TokenStream {
-        match self.kind {
-            BoundArgs::Vec => quote! {
-                Vec<v8::Global<v8::Value>>
-            },
-            BoundArgs::Array(len) => quote! {
-                [v8::Global<v8::Value>; #len]
-            },
-        }
+        (casts, Arity::Fixed(args.len() + 1))
     }
 }
