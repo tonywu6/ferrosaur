@@ -10,17 +10,17 @@ use syn::{
     TypePath,
 };
 use tap::Pipe;
-use util::{FromPositional, Positional};
 
 mod fast_string;
 mod global_this;
 mod module;
 mod properties;
-mod tpl;
 mod util;
 mod value;
 
-use crate::util::{FatalErrors, Feature, FeatureEnum, FeatureName, TokenStreamResult};
+use crate::util::{
+    FatalErrors, Feature, FeatureEnum, FeatureName, FromPositional, Positional, TokenStreamResult,
+};
 
 #[proc_macro_attribute]
 pub fn js(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -58,31 +58,6 @@ struct Module(Positional<ModulePath, ModuleOptions>);
 #[derive(Debug, Clone)]
 struct ModulePath(String);
 
-impl FromPositional for ModulePath {
-    fn fallback() -> Result<Self> {
-        Err(Module::error("must specify a file path to import"))
-    }
-}
-
-impl FromMeta for ModulePath {
-    fn from_string(value: &str) -> Result<Self> {
-        Ok(Self(value.into()))
-    }
-}
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct GlobalThis;
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct Value {
-    serde: Flag,
-    #[darling(default)]
-    of: InnerType,
-}
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct Properties;
-
 #[derive(Debug, Clone, FromMeta)]
 struct ModuleOptions {
     #[darling(default)]
@@ -97,6 +72,40 @@ enum ImportMetaUrl {
     Preserve,
     Cwd,
     Url(String),
+}
+
+#[derive(Debug, Clone, Copy)]
+enum FastString {
+    Fast,
+    FastUnsafeDebug,
+}
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct GlobalThis;
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Value {
+    serde: Flag,
+    #[darling(default)]
+    of: InnerType,
+}
+
+#[derive(Debug, Clone)]
+struct InnerType(Box<Type>);
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Properties;
+
+impl FromPositional for ModulePath {
+    fn fallback() -> Result<Self> {
+        Err(Module::error("must specify a file path to import"))
+    }
+}
+
+impl FromMeta for ModulePath {
+    fn from_string(value: &str) -> Result<Self> {
+        Ok(Self(value.into()))
+    }
 }
 
 impl FromMeta for ImportMetaUrl {
@@ -118,12 +127,6 @@ impl FromMeta for ImportMetaUrl {
             _ => Err(Error::too_many_items(1)),
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum FastString {
-    Fast,
-    FastUnsafeDebug,
 }
 
 impl FromMeta for FastString {
@@ -155,9 +158,6 @@ impl FromMeta for FastString {
         Ok(Self::Fast)
     }
 }
-
-#[derive(Debug, Clone)]
-struct InnerType(Box<Type>);
 
 impl FromMeta for InnerType {
     fn from_list(items: &[NestedMeta]) -> Result<Self> {

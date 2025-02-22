@@ -1,21 +1,17 @@
-use darling::{error::Accumulator, FromMeta, Result};
+use darling::{error::Accumulator, Result};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, FnArg, Generics, Ident, Pat, Receiver, ReturnType,
-    Signature, Token, Type,
+    punctuated::Punctuated, spanned::Spanned, Expr, FnArg, Generics, Ident, Pat, PatIdent,
+    PatRange, RangeLimits, Receiver, ReturnType, Signature, Token, Type,
 };
 use tap::{Pipe, Tap};
 
-use crate::{
-    tpl::{return_type, Arity, Call},
-    util::{Feature, FeatureName, NonFatalErrors, Positional, PropertyKey},
+use crate::util::{
+    Arity, BindFunction, FeatureName, InferredType, NonFatalErrors, Positional, PropertyKey,
 };
 
-use super::{
-    property_key, self_arg, Argument, Constructor, Function, FunctionOptions, MaybeAsync, This,
-    TypeCast,
-};
+use super::{property_key, self_arg, Constructor, Function, FunctionOptions, MaybeAsync, This};
 
 pub enum Callable {
     Func(Function),
@@ -23,7 +19,7 @@ pub enum Callable {
 }
 
 struct Callee {
-    cast: TypeCast,
+    return_ty: InferredType,
     this: This,
     ctor: bool,
     name: PropertyKey<String>,
@@ -36,19 +32,19 @@ impl Callee {
     fn from_func(
         Function(Positional {
             head: name,
-            rest: FunctionOptions { this, cast },
+            rest: FunctionOptions { this },
         }): Function,
         sig: &Signature,
         errors: &mut Accumulator,
     ) -> Self {
-        errors.handle(cast.option_check::<Function>(&sig.output));
         let name = property_key(&sig.ident, name);
+        let err_ctx = format!("failed to call function {name:?}");
         Self {
-            cast,
+            return_ty: sig.output.clone().into(),
             this,
             ctor: false,
-            err_ctx: format!("failed to call function {name:?}"),
             name,
+            err_ctx,
             self_arg: errors
                 .handle(self_arg::<Function>(&sig.inputs, sig.span()))
                 .cloned(),
@@ -61,8 +57,6 @@ impl Callee {
         sig: &Signature,
         errors: &mut Accumulator,
     ) -> Self {
-        let cast = TypeCast::V8;
-        errors.handle(cast.option_check::<Constructor>(&sig.output));
         let name = match (class, &sig.output) {
             (Some(class), _) => PropertyKey::String(class),
             (None, ReturnType::Type(_, ty)) => {
@@ -88,12 +82,13 @@ impl Callee {
                 property_key(&sig.ident, Default::default())
             }
         };
+        let err_ctx = format!("failed to construct {name:?}");
         Self {
-            cast,
+            return_ty: sig.output.clone().into(),
             this: This::Self_,
             ctor: true,
-            err_ctx: format!("failed to construct {name:?}"),
             name,
+            err_ctx,
             self_arg: errors
                 .handle(self_arg::<Constructor>(&sig.inputs, sig.span()))
                 .cloned(),
@@ -106,7 +101,7 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
     let mut errors = Accumulator::default();
 
     let Callee {
-        cast,
+        return_ty,
         this,
         ctor,
         name,
@@ -132,9 +127,7 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
         ..
     } = generics;
 
-    let return_ty = return_type(&output);
-
-    let mut arguments = Vec::<(Ident, Argument)>::new();
+    let mut arguments = Vec::<Argument>::new();
 
     let inputs = inputs
         .into_iter()
@@ -142,44 +135,76 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
         .map(|arg| {
             let FnArg::Typed(arg) = arg else { return arg };
 
-            let (options, arg) = {
-                let mut arg = arg;
+            let ty = InferredType::from((*arg.ty).clone());
 
-                let (options, attrs) =
-                    Feature::<JsArgument>::collect(arg.attrs).non_fatal(&mut errors);
-
-                arg.attrs = attrs;
-
-                if options.len() > 1 {
-                    JsArgument::error("more than one specified")
-                        .with_span(&arg)
-                        .pipe(|e| errors.push(e))
+            match *arg.pat {
+                Pat::Ident(ref ident) => {
+                    if let Some((sub, _)) = &ident.subpat {
+                        Argument::error("subpattern not supported\nremove this")
+                            .with_span(sub)
+                            .pipe(|e| errors.push(e));
+                    }
+                    if let Some(ref_) = &ident.by_ref {
+                        Argument::error("`ref` not supported\nremove this")
+                            .with_span(ref_)
+                            .pipe(|e| errors.push(e));
+                    }
+                    if let Some(mut_) = &ident.mutability {
+                        Argument::error("`mut` not supported\nremove this")
+                            .with_span(mut_)
+                            .pipe(|e| errors.push(e));
+                    }
+                    let spread = false;
+                    let ident = ident.ident.clone();
+                    let arg = arg.tap_mut(|arg| arg.ty = ty.to_type().into());
+                    arguments.push(Argument { ident, ty, spread });
+                    FnArg::Typed(arg)
                 }
 
-                let options = match options.into_iter().next() {
-                    Some(Feature(JsArgument::Arg(options))) => options,
-                    None => Default::default(),
-                };
+                Pat::Range(PatRange {
+                    start: Some(ref start),
+                    end: None,
+                    limits: RangeLimits::HalfOpen(..),
+                    ..
+                }) => match &**start {
+                    Expr::Path(path)
+                        if path.path.segments.len() == 1
+                            && path.path.leading_colon.is_none()
+                            && path.qself.is_none() =>
+                    {
+                        let spread = true;
+                        let ident = path.path.segments[0].ident.clone();
+                        let ty = ty.non_null();
+                        let arg = arg.tap_mut(|arg| {
+                            arg.pat = Pat::Ident(PatIdent {
+                                attrs: vec![],
+                                by_ref: None,
+                                mutability: None,
+                                ident: ident.clone(),
+                                subpat: None,
+                            })
+                            .into();
+                            arg.ty = ty.to_type().into();
+                        });
+                        arguments.push(Argument { ident, ty, spread });
+                        FnArg::Typed(arg)
+                    }
+                    expr => {
+                        "spread argument should be written like `name..`\nfound extra patterns"
+                            .pipe(Argument::error)
+                            .with_span(expr)
+                            .pipe(|e| errors.push(e));
+                        FnArg::Typed(arg)
+                    }
+                },
 
-                (options, arg)
-            };
-
-            let Pat::Ident(name) = &*arg.pat else {
-                JsArgument::error("patterns are not supported here")
-                    .with_span(&arg.pat)
-                    .pipe(|e| errors.push(e));
-                return FnArg::Typed(arg);
-            };
-
-            if let Some((sub, _)) = &name.subpat {
-                JsArgument::error("subpatterns are not supported here")
-                    .with_span(sub)
-                    .pipe(|e| errors.push(e));
+                ref pat => {
+                    Argument::error("pattern not supported")
+                        .with_span(pat)
+                        .pipe(|e| errors.push(e));
+                    FnArg::Typed(arg)
+                }
             }
-
-            arguments.push((name.ident.clone(), options));
-
-            FnArg::Typed(arg)
         })
         .collect::<Punctuated<FnArg, Token![,]>>();
 
@@ -187,7 +212,7 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
 
     let (casts, arity) = scan_args(this, &arguments, quote! { _rt }, quote! { self }, &err_ctx);
 
-    let fn_call = Call { name, ctor, arity }.render();
+    let fn_call = BindFunction { name, ctor, arity }.to_function();
 
     let await_retval = match fn_color {
         MaybeAsync::Async(_) => quote! {
@@ -206,8 +231,8 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
             }
         }
         ReturnType::Type(..) => {
-            let from_retval = cast.from_v8_local("retval", "scope");
-            let into_retval = cast.into_return_value("retval");
+            let from_retval = return_ty.to_cast_from_v8("retval", "scope");
+            let into_retval = return_ty.to_result("retval");
             quote! {{
                 let scope = &mut _rt.handle_scope();
                 let retval = v8::Local::new(scope, retval);
@@ -224,6 +249,8 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
             p.push_punct(Token![,](Span::call_site()));
         }
     });
+
+    let return_ty = return_ty.to_type();
 
     let impl_ = quote! {
         #fn_color fn #ident <#params> (
@@ -267,26 +294,21 @@ impl From<Constructor> for Callable {
     }
 }
 
-#[derive(Debug, Clone, FromMeta)]
-enum JsArgument {
-    Arg(Argument),
+struct Argument {
+    ident: Ident,
+    ty: InferredType,
+    spread: bool,
 }
 
-impl FeatureName for JsArgument {
-    const PREFIX: &str = "js";
+impl FeatureName for Argument {
+    const PREFIX: &str = "arg";
 
     fn unit() -> Result<Self> {
-        JsArgument::from_word()
+        unreachable!()
     }
 }
 
-fn scan_args<T>(
-    this: This,
-    args: &[(Ident, Argument)],
-    rt: T,
-    self_: T,
-    ctx: &str,
-) -> (TokenStream, Arity)
+fn scan_args<T>(this: This, args: &[Argument], rt: T, self_: T, ctx: &str) -> (TokenStream, Arity)
 where
     T: ToTokens,
 {
@@ -310,16 +332,14 @@ where
         }},
     };
 
-    if args
-        .iter()
-        .any(|(_, Argument { spread, .. })| spread.is_present())
-    {
-        let casts = args.iter().map(|(ident, Argument { cast, spread })| {
+    if args.iter().any(|Argument { spread, .. }| *spread) {
+        let casts = args.iter().map(|Argument { ident, ty, spread }| {
             let name = ident.to_string();
-            if spread.is_present() {
+            if *spread {
                 let err = format!("failed to serialize item in argument {name:?}");
-                let var = cast.into_v8_local("arg", "__scope");
+                let var = ty.to_cast_into_v8("arg", "__scope");
                 quote! {
+                    #[allow(for_loops_over_fallibles)]
                     for arg in #ident {
                         let arg = #var.context(#err).context(#ctx)?;
                         let arg = v8::Global::new(__scope, arg);
@@ -328,7 +348,7 @@ where
                 }
             } else {
                 let err = format!("failed to serialize argument {name:?}");
-                let var = cast.into_v8_local(&name, "__scope");
+                let var = ty.to_cast_into_v8(&name, "__scope");
                 quote! {
                     let #ident = #var.context(#err).context(#ctx)?;
                     let #ident = v8::Global::new(__scope, #ident);
@@ -347,17 +367,17 @@ where
 
         (casts, Arity::Variadic)
     } else {
-        let casts = args.iter().map(|(ident, Argument { cast, .. })| {
+        let casts = args.iter().map(|Argument { ty, ident, .. }| {
             let name = ident.to_string();
             let err = format!("failed to serialize argument {name:?}");
-            let var = cast.into_v8_local(&name, "__scope");
+            let var = ty.to_cast_into_v8(&name, "__scope");
             quote! {
                 let #ident = #var.context(#err).context(#ctx)?;
                 let #ident = v8::Global::new(__scope, #ident);
             }
         });
 
-        let names = args.iter().map(|(name, _)| name);
+        let names = args.iter().map(|Argument { ident, .. }| ident);
 
         let casts = quote! {{
             #scope

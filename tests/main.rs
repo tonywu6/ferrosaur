@@ -64,7 +64,11 @@ async fn test_calc() -> Result<()> {
 
     assert_eq!(calc.value(rt)?, 42.0);
 
-    Global::new(rt).console(rt)?.log(&[calc.into()], rt)?;
+    Global::new(rt)
+        .console(rt)?
+        .log(&[calc.clone().into()], rt)?;
+
+    println!("{}", calc.to_string(rt)?);
 
     Ok(())
 }

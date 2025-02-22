@@ -20,6 +20,18 @@ export class Calculator {
   div(value) {
     return new Calculator(this.value / value);
   }
+
+  get [Symbol.toStringTag]() {
+    return `Calculator: ${this.value}`;
+  }
 }
 
 export const calc = new Calculator(0);
+
+function* numbers() {
+  yield "lorem";
+  yield "ipsum";
+  return "dolor";
+}
+
+export const gen = numbers();

@@ -12,7 +12,7 @@ use tap::Pipe;
 use crate::{
     util::{
         use_prelude, FatalErrors, Feature, FeatureEnum, FeatureName, FromPositional, MergeErrors,
-        Positional, PropertyKey, TypeCast,
+        Positional, PropertyKey,
     },
     Properties,
 };
@@ -89,7 +89,7 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
     } = func;
 
     errors.handle(if !block.stmts.is_empty() {
-        Properties::error("fn body should be empty")
+        Properties::error("macro ignores fn body\nchange this to {}")
             .with_span(&block)
             .pipe(Err)
     } else {
@@ -139,8 +139,6 @@ struct Property(Positional<PropertyName, PropertyOptions>);
 #[derive(Debug, Default, Clone, FromMeta)]
 struct PropertyOptions {
     with_setter: Flag,
-    #[darling(default)]
-    cast: TypeCast,
 }
 
 #[derive(Debug, Default, Clone, FromMeta)]
@@ -150,20 +148,11 @@ struct Function(Positional<PropertyName, FunctionOptions>);
 struct FunctionOptions {
     #[darling(default)]
     this: This,
-    #[darling(default)]
-    cast: TypeCast,
 }
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Constructor {
     class: Option<String>,
-}
-
-#[derive(Debug, Default, Clone, Copy, FromMeta)]
-struct Argument {
-    #[darling(default)]
-    cast: TypeCast,
-    spread: Flag,
 }
 
 #[derive(Debug, Default, Clone, Copy, FromMeta)]
@@ -355,13 +344,5 @@ impl FeatureName for Constructor {
 
     fn unit() -> Result<Self> {
         Ok(Default::default())
-    }
-}
-
-impl FeatureName for Argument {
-    const PREFIX: &str = "arg";
-
-    fn unit() -> Result<Self> {
-        Argument::from_word()
     }
 }

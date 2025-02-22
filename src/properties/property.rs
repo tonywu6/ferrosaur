@@ -4,10 +4,7 @@ use quote::{format_ident, quote};
 use syn::{spanned::Spanned, Generics, ReturnType, Signature};
 use tap::Pipe;
 
-use crate::{
-    tpl::{getter, return_type, setter},
-    util::{FeatureName, NonFatalErrors, Positional},
-};
+use crate::util::{FeatureName, InferredType, NonFatalErrors, Positional};
 
 use super::{property_key, self_arg, MaybeAsync, Property, PropertyOptions};
 
@@ -46,10 +43,8 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
 
     let Property(Positional {
         head: name,
-        rest: PropertyOptions { cast, with_setter },
+        rest: PropertyOptions { with_setter },
     }) = prop;
-
-    let return_ty = return_type(&output);
 
     errors.handle(if matches!(output, ReturnType::Default) {
         Property::error("fn must have an explicit return type")
@@ -59,12 +54,13 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         Ok(())
     });
 
-    errors.handle(cast.option_check::<Property>(&output));
+    let return_ty = InferredType::from(output);
 
     let prop = property_key(&ident, name);
 
     let getter = {
-        let getter = getter(&prop, cast, &return_ty);
+        let getter = return_ty.to_getter(&prop);
+        let return_ty = return_ty.to_type();
         let err = format!("failed to get property {prop:?}");
         quote! {
             fn #ident <#params> (
@@ -84,13 +80,13 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
 
     let setter = if with_setter.is_present() {
         let ident = format_ident!("set_{}", ident);
-        let data = quote! { &#return_ty };
-        let setter = setter(&prop, cast, &data);
+        let setter = return_ty.to_setter(&prop);
+        let data_type = return_ty.to_type();
         let err = format!("failed to set property {prop:?}");
         quote! {
             fn #ident <#params> (
                 #self_arg,
-                data: #data,
+                data: #data_type,
                 _rt: &mut JsRuntime,
             ) -> Result<&Self>
             #where_clause
