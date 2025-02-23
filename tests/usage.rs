@@ -16,10 +16,10 @@ pub struct Console;
 #[js(properties)]
 impl Console {
     #[js(func)]
-    pub fn log(&self, items..: &[v8::Global<v8::Value>]) {}
+    pub fn log(&self, ..msgs: Vec<String>, ..items: &[v8::Global<v8::Value>]) {}
 }
 
-#[js(module("./main.js", fast))]
+#[js(module(import("./main.js"), fast))]
 pub struct Main;
 
 #[js(properties)]
@@ -37,7 +37,7 @@ pub struct Calculator;
 
 #[js(properties)]
 impl Calculator {
-    #[js(prop(with_setter))]
+    #[js(prop)]
     pub fn value(&self) -> f64 {}
 
     #[js(func)]
@@ -52,6 +52,6 @@ impl Calculator {
     #[js(func)]
     pub fn div(&self, value: f64) -> v8<Self> {}
 
-    #[js(prop(Symbol::toStringTag, with_setter))]
+    #[js(prop(Symbol(toStringTag)))]
     pub fn to_string(&self) -> String {}
 }

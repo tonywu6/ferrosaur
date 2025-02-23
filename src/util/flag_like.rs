@@ -5,9 +5,9 @@ use syn::{parse::Parser, spanned::Spanned, Attribute, Expr, Lit, Meta};
 use tap::Pipe;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Feature<T>(pub T);
+pub struct FlagLike<T>(pub T);
 
-pub trait FeatureName: Sized {
+pub trait FlagName: Sized {
     const PREFIX: &str;
 
     fn unit() -> Result<Self>;
@@ -29,9 +29,9 @@ pub trait FeatureName: Sized {
     }
 }
 
-impl<T> FromMeta for Feature<T>
+impl<T> FromMeta for FlagLike<T>
 where
-    T: FromMeta + FeatureName,
+    T: FromMeta + FlagName,
 {
     fn from_meta(item: &Meta) -> Result<Self> {
         T::test(item)?;
@@ -78,9 +78,9 @@ where
     }
 }
 
-impl<T> Feature<T>
+impl<T> FlagLike<T>
 where
-    T: FromMeta + FeatureName,
+    T: FromMeta + FlagName,
 {
     pub fn collect(attrs: Vec<Attribute>) -> ((Vec<Self>, Vec<Attribute>), Option<Error>) {
         let mut errors = Error::accumulator();
@@ -104,13 +104,13 @@ where
     }
 }
 
-pub trait FeatureEnum: FeatureName {
+pub trait FlagEnum: FlagName {
     const PREFIXES: &[&str];
 }
 
-impl<T> Feature<T>
+impl<T> FlagLike<T>
 where
-    T: FromMeta + FeatureEnum,
+    T: FromMeta + FlagEnum,
 {
     pub fn exactly_one(attrs: Vec<Attribute>, span: Span) -> Result<(Self, Vec<Attribute>)> {
         let ((items, attrs), error) = Self::collect(attrs);

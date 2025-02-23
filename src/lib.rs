@@ -18,9 +18,7 @@ mod properties;
 mod util;
 mod value;
 
-use crate::util::{
-    FatalErrors, Feature, FeatureEnum, FeatureName, FromPositional, Positional, TokenStreamResult,
-};
+use crate::util::{FatalErrors, FlagEnum, FlagLike, FlagName, TokenStreamResult, Unary};
 
 #[proc_macro_attribute]
 pub fn js(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -30,13 +28,13 @@ pub fn js(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_
 fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
     let errors = Error::accumulator();
 
-    let (js, errors) = Feature::<JsItem>::parse_macro_attribute(args).or_fatal(errors)?;
+    let (js, errors) = FlagLike::<JsItem>::parse_macro_attribute(args).or_fatal(errors)?;
 
     let (js, errors) = match js.0 {
-        JsItem::Module(Feature(module)) => module::module(module, item),
-        JsItem::GlobalThis(Feature(global_this)) => global_this::global_this(global_this, item),
-        JsItem::Value(Feature(value)) => value::value(value, item),
-        JsItem::Properties(Feature(properties)) => properties::properties(properties, item),
+        JsItem::Module(FlagLike(module)) => module::module(module, item),
+        JsItem::GlobalThis(FlagLike(global_this)) => global_this::global_this(global_this, item),
+        JsItem::Value(FlagLike(value)) => value::value(value, item),
+        JsItem::Properties(FlagLike(properties)) => properties::properties(properties, item),
     }
     .or_fatal(errors)?;
 
@@ -46,20 +44,15 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
 #[derive(Debug, Clone, FromMeta)]
 #[darling(rename_all = "snake_case")]
 enum JsItem {
-    Module(Feature<Module>),
-    GlobalThis(Feature<GlobalThis>),
-    Value(Feature<Value>),
-    Properties(Feature<Properties>),
+    Module(FlagLike<Module>),
+    GlobalThis(FlagLike<GlobalThis>),
+    Value(FlagLike<Value>),
+    Properties(FlagLike<Properties>),
 }
 
 #[derive(Debug, Clone, FromMeta)]
-struct Module(Positional<ModulePath, ModuleOptions>);
-
-#[derive(Debug, Clone)]
-struct ModulePath(String);
-
-#[derive(Debug, Clone, FromMeta)]
-struct ModuleOptions {
+struct Module {
+    import: Unary<String>,
     #[darling(default)]
     url: ImportMetaUrl,
     side_module: Flag,
@@ -95,18 +88,6 @@ struct InnerType(Box<Type>);
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Properties;
-
-impl FromPositional for ModulePath {
-    fn fallback() -> Result<Self> {
-        Err(Module::error("must specify a file path to import"))
-    }
-}
-
-impl FromMeta for ModulePath {
-    fn from_string(value: &str) -> Result<Self> {
-        Ok(Self(value.into()))
-    }
-}
 
 impl FromMeta for ImportMetaUrl {
     fn from_list(items: &[NestedMeta]) -> Result<Self> {
@@ -215,7 +196,7 @@ impl Default for InnerType {
     }
 }
 
-impl FeatureName for JsItem {
+impl FlagName for JsItem {
     const PREFIX: &str = "js";
 
     fn unit() -> Result<Self> {
@@ -223,7 +204,7 @@ impl FeatureName for JsItem {
     }
 }
 
-impl FeatureEnum for JsItem {
+impl FlagEnum for JsItem {
     const PREFIXES: &[&str] = &[
         Module::PREFIX,
         GlobalThis::PREFIX,
@@ -232,7 +213,7 @@ impl FeatureEnum for JsItem {
     ];
 }
 
-impl FeatureName for Module {
+impl FlagName for Module {
     const PREFIX: &str = "module";
 
     fn unit() -> Result<Self> {
@@ -240,7 +221,7 @@ impl FeatureName for Module {
     }
 }
 
-impl FeatureName for GlobalThis {
+impl FlagName for GlobalThis {
     const PREFIX: &str = "global_this";
 
     fn unit() -> Result<Self> {
@@ -248,7 +229,7 @@ impl FeatureName for GlobalThis {
     }
 }
 
-impl FeatureName for Value {
+impl FlagName for Value {
     const PREFIX: &str = "value";
 
     fn unit() -> Result<Self> {
@@ -256,7 +237,7 @@ impl FeatureName for Value {
     }
 }
 
-impl FeatureName for Properties {
+impl FlagName for Properties {
     const PREFIX: &str = "properties";
 
     fn unit() -> Result<Self> {

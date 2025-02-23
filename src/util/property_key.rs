@@ -1,13 +1,10 @@
-use darling::{Error, FromMeta, Result};
+use darling::FromMeta;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{Lit, Meta};
-use tap::Pipe;
 
 #[derive(Clone, Copy)]
 pub enum PropertyKey<K> {
     String(K),
-    Number(f64),
     Symbol(WellKnown),
 }
 
@@ -27,56 +24,6 @@ pub enum WellKnown {
     Unscopables,
 }
 
-impl FromMeta for PropertyKey<String> {
-    fn from_meta(item: &Meta) -> Result<Self> {
-        let key = if let Meta::Path(path) = item {
-            if path.segments.len() == 2 {
-                let head = path.segments.get(0).unwrap();
-                let tail = path.segments.get(1).unwrap();
-                if head.ident == "Symbol" && head.arguments.is_none() && tail.arguments.is_none() {
-                    WellKnown::from_string(&tail.ident.to_string())
-                        .map_err(|e| e.with_span(tail))?
-                        .pipe(Self::Symbol)
-                        .pipe(Some)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-        if let Some(key) = key {
-            Ok(key)
-        } else {
-            "property key must be a string, a number, or Symbol::*"
-                .pipe(Error::custom)
-                .with_span(item)
-                .pipe(Err)
-        }
-    }
-
-    fn from_value(value: &Lit) -> Result<Self> {
-        match value {
-            Lit::Str(s) => Self::from_string(&s.value()),
-            Lit::Char(ch) => Self::from_char(ch.value()),
-            Lit::Int(n) => Ok(Self::Number(n.base10_parse()?)),
-            Lit::Float(f) => Ok(Self::Number(f.base10_parse()?)),
-            _ => Err(Error::unexpected_lit_type(value)),
-        }
-        .map_err(|e| e.with_span(value))
-    }
-
-    fn from_string(value: &str) -> Result<Self> {
-        Ok(Self::String(value.into()))
-    }
-
-    fn from_char(value: char) -> Result<Self> {
-        Ok(Self::String(value.into()))
-    }
-}
-
 impl<'a> From<&'a str> for PropertyKey<&'a str> {
     fn from(value: &'a str) -> Self {
         Self::String(value)
@@ -90,7 +37,6 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::String(s) => s.fmt(f),
-            Self::Number(n) => n.fmt(f),
             Self::Symbol(s) => s.fmt(f),
         }
     }
@@ -127,11 +73,6 @@ impl<K: AsRef<str>> ToTokens for PropertyKey<K> {
                     quote! {
                         FastString::from_static(#key).v8_string(scope)?
                     }
-                }
-            }
-            Self::Number(num) => {
-                quote! {
-                    v8::Number::new(scope, #num)
                 }
             }
             Self::Symbol(sym) => match sym {

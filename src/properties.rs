@@ -1,18 +1,18 @@
-use darling::{error::Accumulator, util::Flag, FromMeta, Result};
+use darling::{error::Accumulator, util::Flag, Error, FromMeta, Result};
 use heck::ToLowerCamelCase;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
     parse::{Parse, Parser},
     punctuated::Punctuated,
-    FnArg, Generics, Ident, ImplItem, ImplItemFn, ItemImpl, Lit, Meta, Receiver, Signature, Token,
+    FnArg, Generics, Ident, ImplItem, ImplItemFn, ItemImpl, Receiver, Signature, Token,
 };
 use tap::Pipe;
 
 use crate::{
     util::{
-        use_prelude, FatalErrors, Feature, FeatureEnum, FeatureName, FromPositional, MergeErrors,
-        Positional, PropertyKey,
+        use_prelude, FatalErrors, FlagEnum, FlagLike, FlagName, MergeErrors, PropertyKey,
+        StringLike, Unary, WellKnown,
     },
     Properties,
 };
@@ -104,13 +104,13 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
         Ok(())
     });
 
-    let ((Feature(prop), attrs), errors) =
-        Feature::<JsProperty>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
+    let ((FlagLike(prop), attrs), errors) =
+        FlagLike::<JsProperty>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
 
     let (impl_, errors) = match prop {
-        JsProperty::Prop(Feature(prop)) => property::impl_property(prop, sig),
-        JsProperty::Func(Feature(func)) => function::impl_function(func.into(), sig),
-        JsProperty::New(Feature(ctor)) => function::impl_function(ctor.into(), sig),
+        JsProperty::Prop(FlagLike(prop)) => property::impl_property(prop, sig),
+        JsProperty::Func(FlagLike(func)) => function::impl_function(func.into(), sig),
+        JsProperty::New(FlagLike(ctor)) => function::impl_function(ctor.into(), sig),
     }
     .or_fatal(errors)?;
 
@@ -125,34 +125,35 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
 
 #[derive(Debug, Clone, FromMeta)]
 enum JsProperty {
-    Prop(Feature<Property>),
-    Func(Feature<Function>),
-    New(Feature<Constructor>),
+    Prop(FlagLike<Property>),
+    Func(FlagLike<Function>),
+    New(FlagLike<Constructor>),
 }
 
-#[derive(Debug, Default, Clone)]
-struct PropertyName(Option<PropertyKey<String>>);
+type PropName = StringLike<String>;
+
+type PropSymbol = StringLike<WellKnown>;
 
 #[derive(Debug, Default, Clone, FromMeta)]
-struct Property(Positional<PropertyName, PropertyOptions>);
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct PropertyOptions {
+struct Property {
+    name: Option<Unary<PropName>>,
+    #[darling(rename = "Symbol")]
+    symbol: Option<Unary<PropSymbol>>,
     with_setter: Flag,
 }
 
 #[derive(Debug, Default, Clone, FromMeta)]
-struct Function(Positional<PropertyName, FunctionOptions>);
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct FunctionOptions {
+struct Function {
+    name: Option<Unary<PropName>>,
+    #[darling(rename = "Symbol")]
+    symbol: Option<Unary<PropSymbol>>,
     #[darling(default)]
     this: This,
 }
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Constructor {
-    class: Option<String>,
+    class: Option<Unary<String>>,
 }
 
 #[derive(Debug, Default, Clone, Copy, FromMeta)]
@@ -164,26 +165,6 @@ enum This {
     Undefined,
 }
 
-impl FromMeta for PropertyName {
-    fn from_meta(item: &Meta) -> Result<Self> {
-        Ok(Self(Some(<_>::from_meta(item)?)))
-    }
-
-    fn from_value(value: &Lit) -> Result<Self> {
-        Ok(Self(Some(<_>::from_value(value)?)))
-    }
-
-    fn from_none() -> Option<Self> {
-        Some(Self(None))
-    }
-}
-
-impl FromPositional for PropertyName {
-    fn fallback() -> Result<Self> {
-        Ok(Self(None))
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 enum MaybeAsync {
     Sync,
@@ -191,7 +172,7 @@ enum MaybeAsync {
 }
 
 impl MaybeAsync {
-    fn only<F: FeatureName>(self, sig: &Signature) -> (Self, Option<darling::Error>) {
+    fn only<F: FlagName>(self, sig: &Signature) -> (Self, Option<darling::Error>) {
         let mut errors = Accumulator::default();
 
         let (color, error) = Self::some::<F>(sig);
@@ -220,7 +201,7 @@ impl MaybeAsync {
         (color, errors.into_one())
     }
 
-    fn some<F: FeatureName>(sig: &Signature) -> (Self, Option<darling::Error>) {
+    fn some<F: FlagName>(sig: &Signature) -> (Self, Option<darling::Error>) {
         let color = match &sig.asyncness {
             None => MaybeAsync::Sync,
             Some(token) => MaybeAsync::Async(*token),
@@ -228,7 +209,7 @@ impl MaybeAsync {
         (color, Self::supported::<F>(sig).into_one())
     }
 
-    fn supported<F: FeatureName>(sig: &Signature) -> Accumulator {
+    fn supported<F: FlagName>(sig: &Signature) -> Accumulator {
         let mut errors = Accumulator::default();
 
         macro_rules! deny {
@@ -283,7 +264,7 @@ fn only_inherent_impl(item: &ItemImpl) -> Result<()> {
     errors.finish()
 }
 
-fn self_arg<F: FeatureName>(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receiver> {
+fn self_arg<F: FlagName>(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receiver> {
     match inputs.first() {
         Some(FnArg::Receiver(recv)) => {
             if recv.reference.is_none() || recv.mutability.is_some() {
@@ -301,8 +282,24 @@ fn self_arg<F: FeatureName>(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) ->
     }
 }
 
-fn property_key(src: &Ident, alt: PropertyName) -> PropertyKey<String> {
-    match alt.0 {
+fn name_or_symbol<F: FlagName>(
+    span: Span,
+    name: Option<PropName>,
+    symbol: Option<PropSymbol>,
+) -> (Option<PropertyKey<String>>, Option<Error>) {
+    match (name, symbol) {
+        (None, None) => (None, None),
+        (Some(StringLike(name)), None) => (Some(PropertyKey::String(name)), None),
+        (None, Some(StringLike(symbol))) => (Some(PropertyKey::Symbol(symbol)), None),
+        (Some(StringLike(name)), Some(_)) => (
+            Some(PropertyKey::String(name)),
+            Some(F::error("cannot specify both a name and a symbol").with_span(&span)),
+        ),
+    }
+}
+
+fn property_key(src: &Ident, alt: Option<PropertyKey<String>>) -> PropertyKey<String> {
+    match alt {
         Some(key) => key,
         None => src
             .to_string()
@@ -311,7 +308,7 @@ fn property_key(src: &Ident, alt: PropertyName) -> PropertyKey<String> {
     }
 }
 
-impl FeatureName for JsProperty {
+impl FlagName for JsProperty {
     const PREFIX: &str = "js";
 
     fn unit() -> Result<Self> {
@@ -319,11 +316,11 @@ impl FeatureName for JsProperty {
     }
 }
 
-impl FeatureEnum for JsProperty {
+impl FlagEnum for JsProperty {
     const PREFIXES: &[&str] = &[Property::PREFIX, Function::PREFIX, Constructor::PREFIX];
 }
 
-impl FeatureName for Property {
+impl FlagName for Property {
     const PREFIX: &str = "prop";
 
     fn unit() -> Result<Self> {
@@ -331,7 +328,7 @@ impl FeatureName for Property {
     }
 }
 
-impl FeatureName for Function {
+impl FlagName for Function {
     const PREFIX: &str = "func";
 
     fn unit() -> Result<Self> {
@@ -339,7 +336,7 @@ impl FeatureName for Function {
     }
 }
 
-impl FeatureName for Constructor {
+impl FlagName for Constructor {
     const PREFIX: &str = "new";
 
     fn unit() -> Result<Self> {

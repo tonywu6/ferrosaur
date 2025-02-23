@@ -8,10 +8,10 @@ use syn::{
 use tap::{Pipe, Tap};
 
 use crate::util::{
-    Arity, BindFunction, FeatureName, InferredType, NonFatalErrors, Positional, PropertyKey,
+    BoundFunc, FlagName, FuncArity, InferredType, NewtypeMeta, NonFatalErrors, PropertyKey, Unary,
 };
 
-use super::{property_key, self_arg, Constructor, Function, FunctionOptions, MaybeAsync, This};
+use super::{name_or_symbol, property_key, self_arg, Constructor, Function, MaybeAsync, This};
 
 pub enum Callable {
     Func(Function),
@@ -30,13 +30,12 @@ struct Callee {
 
 impl Callee {
     fn from_func(
-        Function(Positional {
-            head: name,
-            rest: FunctionOptions { this },
-        }): Function,
+        Function { name, symbol, this }: Function,
         sig: &Signature,
         errors: &mut Accumulator,
     ) -> Self {
+        let name = name_or_symbol::<Function>(sig.span(), name.into_inner(), symbol.into_inner())
+            .non_fatal(errors);
         let name = property_key(&sig.ident, name);
         let err_ctx = format!("failed to call function {name:?}");
         Self {
@@ -58,7 +57,7 @@ impl Callee {
         errors: &mut Accumulator,
     ) -> Self {
         let name = match (class, &sig.output) {
-            (Some(class), _) => PropertyKey::String(class),
+            (Some(Unary(class)), _) => PropertyKey::String(class),
             (None, ReturnType::Type(_, ty)) => {
                 let ident = match &**ty {
                     Type::Path(ty) => ty.path.segments.last().map(|s| &s.ident),
@@ -162,11 +161,11 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
                 }
 
                 Pat::Range(PatRange {
-                    start: Some(ref start),
-                    end: None,
+                    start: None,
+                    end: Some(ref end),
                     limits: RangeLimits::HalfOpen(..),
                     ..
-                }) => match &**start {
+                }) => match &**end {
                     Expr::Path(path)
                         if path.path.segments.len() == 1
                             && path.path.leading_colon.is_none()
@@ -212,7 +211,7 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
 
     let (casts, arity) = scan_args(this, &arguments, quote! { _rt }, quote! { self }, &err_ctx);
 
-    let fn_call = BindFunction { name, ctor, arity }.to_function();
+    let fn_call = BoundFunc { name, ctor, arity }.to_function();
 
     let await_retval = match fn_color {
         MaybeAsync::Async(_) => quote! {
@@ -300,7 +299,7 @@ struct Argument {
     spread: bool,
 }
 
-impl FeatureName for Argument {
+impl FlagName for Argument {
     const PREFIX: &str = "arg";
 
     fn unit() -> Result<Self> {
@@ -308,7 +307,13 @@ impl FeatureName for Argument {
     }
 }
 
-fn scan_args<T>(this: This, args: &[Argument], rt: T, self_: T, ctx: &str) -> (TokenStream, Arity)
+fn scan_args<T>(
+    this: This,
+    args: &[Argument],
+    rt: T,
+    self_: T,
+    ctx: &str,
+) -> (TokenStream, FuncArity)
 where
     T: ToTokens,
 {
@@ -365,7 +370,7 @@ where
             __args
         }};
 
-        (casts, Arity::Variadic)
+        (casts, FuncArity::Variadic)
     } else {
         let casts = args.iter().map(|Argument { ty, ident, .. }| {
             let name = ident.to_string();
@@ -385,6 +390,6 @@ where
             [#this, #(#names),*]
         }};
 
-        (casts, Arity::Fixed(args.len() + 1))
+        (casts, FuncArity::Fixed(args.len() + 1))
     }
 }

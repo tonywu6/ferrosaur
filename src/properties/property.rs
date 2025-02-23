@@ -4,9 +4,9 @@ use quote::{format_ident, quote};
 use syn::{spanned::Spanned, Generics, ReturnType, Signature};
 use tap::Pipe;
 
-use crate::util::{FeatureName, InferredType, NonFatalErrors, Positional};
+use crate::util::{FlagName, InferredType, NewtypeMeta, NonFatalErrors};
 
-use super::{property_key, self_arg, MaybeAsync, Property, PropertyOptions};
+use super::{name_or_symbol, property_key, self_arg, MaybeAsync, Property};
 
 pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>> {
     let mut errors = Error::accumulator();
@@ -41,10 +41,11 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         Ok(())
     });
 
-    let Property(Positional {
-        head: name,
-        rest: PropertyOptions { with_setter },
-    }) = prop;
+    let Property {
+        name,
+        symbol,
+        with_setter,
+    } = prop;
 
     errors.handle(if matches!(output, ReturnType::Default) {
         Property::error("fn must have an explicit return type")
@@ -56,12 +57,15 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
 
     let return_ty = InferredType::from(output);
 
-    let prop = property_key(&ident, name);
+    let name = name_or_symbol::<Property>(ident.span(), name.into_inner(), symbol.into_inner())
+        .non_fatal(&mut errors);
+
+    let name = property_key(&ident, name);
 
     let getter = {
-        let getter = return_ty.to_getter(&prop);
+        let getter = return_ty.to_getter(&name);
         let return_ty = return_ty.to_type();
-        let err = format!("failed to get property {prop:?}");
+        let err = format!("failed to get property {name:?}");
         quote! {
             fn #ident <#params> (
                 #self_arg,
@@ -80,9 +84,9 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
 
     let setter = if with_setter.is_present() {
         let ident = format_ident!("set_{}", ident);
-        let setter = return_ty.to_setter(&prop);
+        let setter = return_ty.to_setter(&name);
         let data_type = return_ty.to_type();
-        let err = format!("failed to set property {prop:?}");
+        let err = format!("failed to set property {name:?}");
         quote! {
             fn #ident <#params> (
                 #self_arg,

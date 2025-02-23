@@ -8,18 +8,20 @@ use syn::{
 };
 use tap::{Conv, Pipe, Tap};
 
-mod bind_function;
-mod feature;
+mod bound_func;
+mod flag_like;
 mod inferred_type;
-mod positional;
 mod property_key;
+mod string_like;
+mod unary;
 
 pub use self::{
-    bind_function::{Arity, BindFunction},
-    feature::{Feature, FeatureEnum, FeatureName},
+    bound_func::{BoundFunc, FuncArity},
+    flag_like::{FlagEnum, FlagLike, FlagName},
     inferred_type::InferredType,
-    positional::{FromPositional, Positional},
     property_key::{PropertyKey, WellKnown},
+    string_like::StringLike,
+    unary::Unary,
 };
 
 pub trait TokenStreamResult {
@@ -81,6 +83,34 @@ impl MergeErrors for Accumulator {
         } else {
             Some(Error::multiple(errors))
         }
+    }
+}
+
+pub trait NewtypeMeta<T> {
+    fn into_inner(self) -> T;
+}
+
+impl<T> NewtypeMeta<T> for FlagLike<T> {
+    fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T> NewtypeMeta<T> for Unary<T> {
+    fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T> NewtypeMeta<T> for StringLike<T> {
+    fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl<T: NewtypeMeta<U>, U> NewtypeMeta<Option<U>> for Option<T> {
+    fn into_inner(self) -> Option<U> {
+        self.map(NewtypeMeta::into_inner)
     }
 }
 

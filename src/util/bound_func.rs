@@ -4,19 +4,19 @@ use quote::quote;
 use super::{unwrap_v8_local, InferredType, PropertyKey};
 
 #[derive(Debug, Clone)]
-pub struct BindFunction {
+pub struct BoundFunc {
     pub name: PropertyKey<String>,
     pub ctor: bool,
-    pub arity: Arity,
+    pub arity: FuncArity,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Arity {
+pub enum FuncArity {
     Fixed(usize),
     Variadic,
 }
 
-impl BindFunction {
+impl BoundFunc {
     pub fn to_function(&self) -> TokenStream {
         let func = InferredType::new_v8("Function");
 
@@ -39,19 +39,19 @@ impl BindFunction {
         };
 
         let args_ty = match self.arity {
-            Arity::Fixed(len) => quote! {
+            FuncArity::Fixed(len) => quote! {
                 [v8::Global<v8::Value>; #len]
             },
-            Arity::Variadic => quote! {
+            FuncArity::Variadic => quote! {
                 Vec<v8::Global<v8::Value>>
             },
         };
 
         let args = match self.arity {
-            Arity::Fixed(_) => quote! {
+            FuncArity::Fixed(_) => quote! {
                 args.map(|arg| v8::Local::new(scope, arg))
             },
-            Arity::Variadic => quote! {
+            FuncArity::Variadic => quote! {
                 args
                     .iter()
                     .map(|arg| v8::Local::new(scope, arg))
