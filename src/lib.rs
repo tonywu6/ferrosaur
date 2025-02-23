@@ -13,6 +13,7 @@ use tap::Pipe;
 
 mod fast_string;
 mod global_this;
+mod iterator;
 mod module;
 mod properties;
 mod util;
@@ -35,6 +36,7 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
         JsItem::GlobalThis(FlagLike(global_this)) => global_this::global_this(global_this, item),
         JsItem::Value(FlagLike(value)) => value::value(value, item),
         JsItem::Properties(FlagLike(properties)) => properties::properties(properties, item),
+        JsItem::Iterator(FlagLike(iterator)) => iterator::iterator(iterator, item),
     }
     .or_fatal(errors)?;
 
@@ -48,6 +50,7 @@ enum JsItem {
     GlobalThis(FlagLike<GlobalThis>),
     Value(FlagLike<Value>),
     Properties(FlagLike<Properties>),
+    Iterator(FlagLike<Iterator_>),
 }
 
 #[derive(Debug, Clone, FromMeta)]
@@ -88,6 +91,9 @@ struct InnerType(Box<Type>);
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Properties;
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Iterator_;
 
 impl FromMeta for ImportMetaUrl {
     fn from_list(items: &[NestedMeta]) -> Result<Self> {
@@ -239,6 +245,14 @@ impl FlagName for Value {
 
 impl FlagName for Properties {
     const PREFIX: &str = "properties";
+
+    fn unit() -> Result<Self> {
+        Ok(Self)
+    }
+}
+
+impl FlagName for Iterator_ {
+    const PREFIX: &str = "iterator";
 
     fn unit() -> Result<Self> {
         Ok(Self)

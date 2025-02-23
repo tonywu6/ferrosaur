@@ -3,17 +3,237 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
     parse::{Parse, Parser},
-    ItemImpl,
+    Generics, Ident, ImplItem, ImplItemType, ItemImpl, Visibility,
 };
+use tap::Pipe;
 
-use crate::{util::FatalErrors, Iterator_};
+use crate::{
+    util::{
+        only_inherent_impl, use_prelude, BindFunction, FatalErrors, FlagName, FunctionLength,
+        FunctionThis, TypeCast,
+    },
+    Iterator_,
+};
 
 pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
     let errors = Accumulator::default();
 
     let (item, mut errors) = ItemImpl::parse.parse2(item).or_fatal(errors)?;
 
+    errors.handle(only_inherent_impl::<Iterator_>(&item));
+
+    let ItemImpl {
+        attrs,
+        generics,
+        self_ty,
+        items,
+        ..
+    } = item;
+
+    let Generics {
+        params,
+        where_clause,
+        ..
+    } = generics;
+
+    let item_type = items
+        .into_iter()
+        .filter_map(|item| errors.handle(item_type(item)))
+        .collect::<Vec<_>>();
+
+    let item_type = match item_type.len() {
+        0 => TypeCast::default(),
+        1 => item_type.into_iter().next().unwrap().0,
+        _ => {
+            let mut item_type = item_type.into_iter();
+            let ty = item_type.next().unwrap().0;
+            "more than 1 `type Item` specified\nspecify 1 or none"
+                .pipe(Iterator_::error)
+                .with_span(&item_type.next().unwrap().1)
+                .pipe(|e| errors.push(e));
+            ty
+        }
+    };
+
+    let return_ty = item_type.to_type();
+
+    let use_prelude = use_prelude();
+
+    let fn_value = BindFunction {
+        name: "next".into(),
+        this: FunctionThis::Self_,
+        ctor: false,
+        length: FunctionLength::Fixed(0),
+    }
+    .to_function();
+
+    let get_value = TypeCast::default().to_getter(&"value".into());
+
+    let get_done = TypeCast::default().to_getter(&"done".into());
+
+    let into_item = {
+        let from_v8 = item_type.to_cast_from_v8("value", "scope");
+        let into_item = item_type.to_cast_into_output("value");
+        quote! {{
+            let value = #from_v8?;
+            #into_item
+        }}
+    };
+
+    let fn_next = quote! {
+        pub fn next(&mut self, rt: &mut JsRuntime) -> Result<Option<#return_ty>>
+        {
+            let scope = &mut rt.handle_scope();
+            let next = {
+                #fn_value
+                let this = AsRef::<v8::Global<_>>::as_ref(self);
+                let this = v8::Local::new(scope, this);
+                call(scope, this, [])
+                    .context("failed to call `next` on iterator")?
+            };
+            let done = {
+                #get_done
+                let this = v8::Local::new(scope, &next);
+                getter(scope, this)
+                    .context("failed to get `done` from iterator result")?
+            };
+            let value = {
+                #get_value
+                let this = v8::Local::new(scope, &next);
+                getter(scope, this)
+                    .context("failed to get `value` from iterator result")?
+            };
+            let done = v8::Local::new(scope, done);
+            let value = v8::Local::new(scope, value);
+            if done.is_true() {
+                if value.is_undefined() {
+                    Ok(None)
+                } else {
+                    Ok(Some(#into_item))
+                }
+            } else {
+                Ok(Some(#into_item))
+            }
+        }
+    };
+
+    let fn_into_iter = {
+        quote! {
+            pub fn into_iter(self, rt: &mut JsRuntime)
+                -> impl Iterator<Item = Result<#return_ty>> + use<'_, #params>
+            {
+                struct Iter<'__rt, #params> {
+                    rt: &'__rt mut JsRuntime,
+                    inner: #self_ty,
+                }
+
+                impl < #params> ::core::iter::Iterator for Iter<'_, #params>
+                #where_clause
+                {
+                    type Item = Result<#return_ty>;
+
+                    fn next(&mut self) -> Option<Self::Item> {
+                        self.inner.next(self.rt).transpose()
+                    }
+                }
+
+                Iter { rt, inner: self }
+            }
+        }
+    };
+
     errors.finish()?;
 
-    Ok(quote! {})
+    Ok(quote! {
+        const _: () = {
+            #use_prelude
+
+            #[allow(unused)]
+            use deno_core::{
+                anyhow::{anyhow, Context, Result}, error::JsError,
+                ascii_str, serde_v8, v8, FastString, JsRuntime,
+            };
+
+            #(#attrs)*
+            impl <#params> #self_ty
+            #where_clause
+            {
+                #fn_next
+
+                #fn_into_iter
+            }
+        };
+    })
+}
+
+fn item_type(item: ImplItem) -> Result<(TypeCast, Ident)> {
+    let ImplItem::Type(ty) = item else {
+        return "unexpected item\nmove this item to another impl block"
+            .pipe(Iterator_::error)
+            .with_span(&item)
+            .pipe(Err);
+    };
+
+    let ImplItemType {
+        attrs,
+        defaultness,
+        vis,
+        ident,
+        generics,
+        ty,
+        ..
+    } = ty;
+
+    if ident != "Item" {
+        return "unexpected type name, expected `type Item`"
+            .pipe(Iterator_::error)
+            .with_span(&ident)
+            .pipe(Err);
+    }
+
+    let mut errors = Accumulator::default();
+
+    errors.handle(if !attrs.is_empty() {
+        Iterator_::error("macro ignores attributes in this location")
+            .with_span(&quote! { #(#attrs)* })
+            .pipe(Err)
+    } else {
+        Ok(())
+    });
+
+    errors.handle(if defaultness.is_some() {
+        Iterator_::error("macro ignores `default` in this location")
+            .with_span(&defaultness)
+            .pipe(Err)
+    } else {
+        Ok(())
+    });
+
+    errors.handle(if !generics.params.is_empty() {
+        Iterator_::error("macro ignores type params in this location")
+            .with_span(&generics.params)
+            .pipe(Err)
+    } else {
+        Ok(())
+    });
+
+    errors.handle(if generics.where_clause.is_some() {
+        Iterator_::error("macro ignores where clause in this location")
+            .with_span(&generics.where_clause)
+            .pipe(Err)
+    } else {
+        Ok(())
+    });
+
+    errors.handle(
+        if matches!(vis, Visibility::Public(_) | Visibility::Restricted(_)) {
+            Iterator_::error("macro ignores visibility modifiers in this location")
+                .with_span(&vis)
+                .pipe(Err)
+        } else {
+            Ok(())
+        },
+    );
+
+    errors.finish_with((ty.into(), ident))
 }

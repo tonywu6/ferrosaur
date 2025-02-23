@@ -29,10 +29,13 @@ impl Main {
 
     #[js(new)]
     pub fn calculator(&self) -> v8<Calculator> {}
+
+    #[js(new)]
+    pub fn fibonacci(&self) -> v8<Fibonacci> {}
 }
 
 #[js(value)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Calculator;
 
 #[js(properties)]
@@ -54,4 +57,21 @@ impl Calculator {
 
     #[js(prop(Symbol(toStringTag)))]
     pub fn to_string(&self) -> String {}
+}
+
+#[js(value)]
+pub struct Fibonacci;
+
+#[js(properties)]
+impl Fibonacci {
+    #[js(func(Symbol(iterator)))]
+    pub fn iter(&self) -> v8<FibonacciIter> {}
+}
+
+#[js(value)]
+pub struct FibonacciIter;
+
+#[js(iterator)]
+impl FibonacciIter {
+    type Item = f64;
 }

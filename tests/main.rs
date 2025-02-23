@@ -66,9 +66,19 @@ async fn test_calc() -> Result<()> {
 
     Global::new(rt)
         .console(rt)?
-        .log(&[calc.clone().into()], rt)?;
+        .log(vec!["calc?".into()], &[calc.clone().into()], rt)?;
 
     println!("{}", calc.to_string(rt)?);
+
+    let fib = main.fibonacci(rt)?;
+
+    let fib = fib
+        .iter(rt)?
+        .into_iter(rt)
+        .take(100)
+        .collect::<Result<Vec<_>>>()?;
+
+    println!("{fib:?}");
 
     Ok(())
 }

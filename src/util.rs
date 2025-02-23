@@ -3,24 +3,24 @@ use heck::ToSnakeCase;
 use proc_macro2::{TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, token::Paren, Generics, Ident, Path, PathSegment,
-    Token, VisRestricted, Visibility,
+    punctuated::Punctuated, spanned::Spanned, token::Paren, Generics, Ident, ItemImpl, Path,
+    PathSegment, Token, VisRestricted, Visibility,
 };
 use tap::{Conv, Pipe, Tap};
 
-mod bound_func;
+mod bind_function;
 mod flag_like;
-mod inferred_type;
 mod property_key;
 mod string_like;
+mod type_cast;
 mod unary;
 
 pub use self::{
-    bound_func::{BoundFunc, FuncArity},
+    bind_function::{BindFunction, FunctionLength, FunctionThis},
     flag_like::{FlagEnum, FlagLike, FlagName},
-    inferred_type::InferredType,
     property_key::{PropertyKey, WellKnown},
     string_like::StringLike,
+    type_cast::TypeCast,
     unary::Unary,
 };
 
@@ -156,6 +156,30 @@ pub fn inner_mod_name<T: ToTokens>(prefix: &str, item: T) -> Ident {
     format!("__bindgen_{prefix}_{name}")
         .to_lowercase()
         .pipe_as_ref(|name| Ident::new(name, item.span()))
+}
+
+pub fn only_inherent_impl<F: FlagName>(item: &ItemImpl) -> Result<()> {
+    let mut errors = Accumulator::default();
+
+    if item.defaultness.is_some() {
+        F::error("impl cannot be `default`")
+            .with_span(&item.defaultness)
+            .pipe(|e| errors.push(e));
+    }
+
+    if item.unsafety.is_some() {
+        F::error("impl cannot be `unsafe`")
+            .with_span(&item.unsafety)
+            .pipe(|e| errors.push(e));
+    }
+
+    if let Some((_, ty, _)) = &item.trait_ {
+        F::error("cannot be a trait impl")
+            .with_span(ty)
+            .pipe(|e| errors.push(e));
+    }
+
+    errors.finish()
 }
 
 #[allow(unused)]

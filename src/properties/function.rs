@@ -8,10 +8,11 @@ use syn::{
 use tap::{Pipe, Tap};
 
 use crate::util::{
-    BoundFunc, FlagName, FuncArity, InferredType, NewtypeMeta, NonFatalErrors, PropertyKey, Unary,
+    BindFunction, FlagName, FunctionLength, FunctionThis, NewtypeMeta, NonFatalErrors, PropertyKey,
+    TypeCast, Unary,
 };
 
-use super::{name_or_symbol, property_key, self_arg, Constructor, Function, MaybeAsync, This};
+use super::{name_or_symbol, property_key, self_arg, Constructor, Function, MaybeAsync};
 
 pub enum Callable {
     Func(Function),
@@ -19,8 +20,8 @@ pub enum Callable {
 }
 
 struct Callee {
-    return_ty: InferredType,
-    this: This,
+    return_ty: TypeCast,
+    this: FunctionThis,
     ctor: bool,
     name: PropertyKey<String>,
     err_ctx: String,
@@ -56,11 +57,26 @@ impl Callee {
         sig: &Signature,
         errors: &mut Accumulator,
     ) -> Self {
+        let return_ty = TypeCast::from(sig.output.clone());
+
         let name = match (class, &sig.output) {
             (Some(Unary(class)), _) => PropertyKey::String(class),
-            (None, ReturnType::Type(_, ty)) => {
-                let ident = match &**ty {
-                    Type::Path(ty) => ty.path.segments.last().map(|s| &s.ident),
+
+            (None, ReturnType::Type(..)) => {
+                let ty = return_ty.as_type();
+                let ident = match ty {
+                    Type::Path(ty) => {
+                        let last = ty.path.segments.last();
+                        if let Some(last) = last {
+                            if last.arguments.is_none() {
+                                Some(&last.ident)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
                     _ => None,
                 };
                 if let Some(ident) = ident {
@@ -73,6 +89,7 @@ impl Callee {
                     property_key(&sig.ident, Default::default())
                 }
             }
+
             (None, ReturnType::Default) => {
                 "cannot infer class name\nspecify a return type, or use `#[js(new(class(...)))]`"
                     .pipe(Constructor::error)
@@ -81,10 +98,11 @@ impl Callee {
                 property_key(&sig.ident, Default::default())
             }
         };
+
         let err_ctx = format!("failed to construct {name:?}");
         Self {
             return_ty: sig.output.clone().into(),
-            this: This::Self_,
+            this: FunctionThis::Self_,
             ctor: true,
             name,
             err_ctx,
@@ -134,7 +152,7 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
         .map(|arg| {
             let FnArg::Typed(arg) = arg else { return arg };
 
-            let ty = InferredType::from((*arg.ty).clone());
+            let ty = TypeCast::from((*arg.ty).clone());
 
             match *arg.pat {
                 Pat::Ident(ref ident) => {
@@ -209,9 +227,15 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
 
     let arguments = arguments;
 
-    let (casts, arity) = scan_args(this, &arguments, quote! { _rt }, quote! { self }, &err_ctx);
+    let (casts, length) = scan_args(&arguments, quote! { _rt }, &err_ctx);
 
-    let fn_call = BoundFunc { name, ctor, arity }.to_function();
+    let fn_call = BindFunction {
+        name,
+        this,
+        ctor,
+        length,
+    }
+    .to_function();
 
     let await_retval = match fn_color {
         MaybeAsync::Async(_) => quote! {
@@ -231,14 +255,14 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
         }
         ReturnType::Type(..) => {
             let from_retval = return_ty.to_cast_from_v8("retval", "scope");
-            let into_retval = return_ty.to_result("retval");
+            let into_retval = return_ty.to_cast_into_output("retval");
             quote! {{
                 let scope = &mut _rt.handle_scope();
                 let retval = v8::Local::new(scope, retval);
                 let retval = #from_retval
                     .context("failed to convert returned value")
                     .context(#err_ctx)?;
-                #into_retval
+                Ok(#into_retval)
             }}
         }
     };
@@ -295,7 +319,7 @@ impl From<Constructor> for Callable {
 
 struct Argument {
     ident: Ident,
-    ty: InferredType,
+    ty: TypeCast,
     spread: bool,
 }
 
@@ -307,34 +331,12 @@ impl FlagName for Argument {
     }
 }
 
-fn scan_args<T>(
-    this: This,
-    args: &[Argument],
-    rt: T,
-    self_: T,
-    ctx: &str,
-) -> (TokenStream, FuncArity)
+fn scan_args<T>(args: &[Argument], rt: T, ctx: &str) -> (TokenStream, FunctionLength)
 where
     T: ToTokens,
 {
     let scope = quote! {
         let __scope = &mut #rt.handle_scope();
-    };
-
-    let this = match this {
-        This::Self_ => quote! {{
-            let this = AsRef::<v8::Global<_>>::as_ref(#self_);
-            let this = v8::Local::new(__scope, this);
-            let this = this.try_cast::<v8::Value>()
-                .context("failed to serialize `this`")
-                .context(#ctx)?;
-            v8::Global::new(__scope, this)
-        }},
-        This::Undefined => quote! {{
-            let this = v8::undefined(__scope);
-            let this = this.cast::<v8::Value>();
-            v8::Global::new(__scope, this)
-        }},
     };
 
     if args.iter().any(|Argument { spread, .. }| *spread) {
@@ -365,12 +367,11 @@ where
         let casts = quote! {{
             #scope
             let mut __args = Vec::new();
-            __args.push(#this);
             #(#casts)*
             __args
         }};
 
-        (casts, FuncArity::Variadic)
+        (casts, FunctionLength::Variadic)
     } else {
         let casts = args.iter().map(|Argument { ty, ident, .. }| {
             let name = ident.to_string();
@@ -387,9 +388,9 @@ where
         let casts = quote! {{
             #scope
             #(#casts)*
-            [#this, #(#names),*]
+            [#(#names),*]
         }};
 
-        (casts, FuncArity::Fixed(args.len() + 1))
+        (casts, FunctionLength::Fixed(args.len()))
     }
 }

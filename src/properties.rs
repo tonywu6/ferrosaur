@@ -11,8 +11,8 @@ use tap::Pipe;
 
 use crate::{
     util::{
-        use_prelude, FatalErrors, FlagEnum, FlagLike, FlagName, MergeErrors, PropertyKey,
-        StringLike, Unary, WellKnown,
+        only_inherent_impl, use_prelude, FatalErrors, FlagEnum, FlagLike, FlagName, FunctionThis,
+        MergeErrors, PropertyKey, StringLike, Unary, WellKnown,
     },
     Properties,
 };
@@ -25,7 +25,7 @@ pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
 
     let (item, mut errors) = ItemImpl::parse.parse2(item).or_fatal(errors)?;
 
-    errors.handle(only_inherent_impl(&item));
+    errors.handle(only_inherent_impl::<Properties>(&item));
 
     let ItemImpl {
         attrs,
@@ -148,21 +148,12 @@ struct Function {
     #[darling(rename = "Symbol")]
     symbol: Option<Unary<PropSymbol>>,
     #[darling(default)]
-    this: This,
+    this: FunctionThis,
 }
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Constructor {
     class: Option<Unary<String>>,
-}
-
-#[derive(Debug, Default, Clone, Copy, FromMeta)]
-enum This {
-    #[darling(rename = "self")]
-    #[default]
-    Self_,
-    #[darling(rename = "undefined")]
-    Undefined,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -238,30 +229,6 @@ impl ToTokens for MaybeAsync {
             Self::Sync => {}
         }
     }
-}
-
-fn only_inherent_impl(item: &ItemImpl) -> Result<()> {
-    let mut errors = Accumulator::default();
-
-    if item.defaultness.is_some() {
-        Properties::error("impl cannot be `default`")
-            .with_span(&item.defaultness)
-            .pipe(|e| errors.push(e));
-    }
-
-    if item.unsafety.is_some() {
-        Properties::error("impl cannot be `unsafe`")
-            .with_span(&item.unsafety)
-            .pipe(|e| errors.push(e));
-    }
-
-    if let Some((_, ty, _)) = &item.trait_ {
-        Properties::error("cannot be a trait impl")
-            .with_span(ty)
-            .pipe(|e| errors.push(e));
-    }
-
-    errors.finish()
 }
 
 fn self_arg<F: FlagName>(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receiver> {

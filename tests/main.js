@@ -35,3 +35,15 @@ function* numbers() {
 }
 
 export const gen = numbers();
+
+export class Fibonacci {
+  *[Symbol.iterator]() {
+    let current = 0;
+    let next = 1;
+
+    for (;;) {
+      [current, next] = [next, current + next];
+      yield current;
+    }
+  }
+}

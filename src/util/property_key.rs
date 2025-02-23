@@ -24,8 +24,8 @@ pub enum WellKnown {
     Unscopables,
 }
 
-impl<'a> From<&'a str> for PropertyKey<&'a str> {
-    fn from(value: &'a str) -> Self {
+impl<K: AsRef<str>> From<K> for PropertyKey<K> {
+    fn from(value: K) -> Self {
         Self::String(value)
     }
 }

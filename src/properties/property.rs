@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 use syn::{spanned::Spanned, Generics, ReturnType, Signature};
 use tap::Pipe;
 
-use crate::util::{FlagName, InferredType, NewtypeMeta, NonFatalErrors};
+use crate::util::{FlagName, NewtypeMeta, NonFatalErrors, TypeCast};
 
 use super::{name_or_symbol, property_key, self_arg, MaybeAsync, Property};
 
@@ -55,7 +55,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         Ok(())
     });
 
-    let return_ty = InferredType::from(output);
+    let return_ty = TypeCast::from(output);
 
     let name = name_or_symbol::<Property>(ident.span(), name.into_inner(), symbol.into_inner())
         .non_fatal(&mut errors);

@@ -9,7 +9,7 @@ use tap::{Pipe, Tap};
 use super::{unwrap_v8_local, PropertyKey};
 
 #[derive(Debug, Clone)]
-pub enum InferredType {
+pub enum TypeCast {
     Serde {
         ty: Type,
     },
@@ -20,19 +20,19 @@ pub enum InferredType {
     },
 }
 
-impl From<Type> for InferredType {
+impl From<Type> for TypeCast {
     fn from(mut ty: Type) -> Self {
         let use_v8 = UseV8::visit(&mut ty);
 
-        fn serde_or_v8(use_v8: UseV8, ty: Type) -> InferredType {
+        fn serde_or_v8(use_v8: UseV8, ty: Type) -> TypeCast {
             match use_v8 {
-                UseV8::None => InferredType::Serde { ty },
-                UseV8::Some => InferredType::V8 {
+                UseV8::None => TypeCast::Serde { ty },
+                UseV8::Some => TypeCast::V8 {
                     ty,
                     newtype: None,
                     nullish: false,
                 },
-                UseV8::NewType(newtype) => InferredType::V8 {
+                UseV8::NewType(newtype) => TypeCast::V8 {
                     ty,
                     newtype: Some(newtype),
                     nullish: false,
@@ -78,7 +78,7 @@ impl From<Type> for InferredType {
     }
 }
 
-impl From<ReturnType> for InferredType {
+impl From<ReturnType> for TypeCast {
     fn from(value: ReturnType) -> Self {
         match value {
             ReturnType::Default => TypeTuple {
@@ -92,67 +92,16 @@ impl From<ReturnType> for InferredType {
     }
 }
 
-impl InferredType {
-    pub fn new_v8(ty: &str) -> Self {
-        [format_ident!("v8"), format_ident!("{}", ty)]
-            .map(PathSegment::from)
-            .pipe(Punctuated::<PathSegment, Token![::]>::from_iter)
-            .pipe(|segments| Path {
-                segments,
-                leading_colon: None,
-            })
-            .pipe(|path| TypePath { path, qself: None })
-            .pipe(Type::Path)
-            .pipe(GenericArgument::Type)
-            .pipe(std::iter::once)
-            .pipe(Punctuated::<GenericArgument, Token![,]>::from_iter)
-            .pipe(|args| AngleBracketedGenericArguments {
-                args,
-                colon2_token: None,
-                lt_token: Token![<](Span::call_site()),
-                gt_token: Token![>](Span::call_site()),
-            })
-            .pipe(PathArguments::AngleBracketed)
-            .pipe(|arguments| PathSegment {
-                ident: format_ident!("Global"),
-                arguments,
-            })
-            .pipe(|global| [format_ident!("v8").into(), global])
-            .pipe(Punctuated::<PathSegment, Token![::]>::from_iter)
-            .pipe(|segments| Path {
-                segments,
-                leading_colon: None,
-            })
-            .pipe(|path| TypePath { path, qself: None })
-            .pipe(Type::Path)
-            .pipe(|ty| Self::V8 {
-                ty,
-                newtype: None,
-                nullish: false,
-            })
-    }
-
-    pub fn non_null(self) -> Self {
+impl TypeCast {
+    pub fn as_type(&self) -> &Type {
         match self {
-            Self::V8 {
-                nullish: true,
-                ty,
-                newtype,
-            } => Self::V8 {
-                ty,
-                newtype,
-                nullish: false,
-            },
-            Self::V8 { nullish: false, .. } => self,
-            Self::Serde { .. } => self,
+            Self::Serde { ty } => ty,
+            Self::V8 { ty, .. } => ty,
         }
     }
 
     pub fn to_type(&self) -> Type {
-        match self {
-            Self::Serde { ty } => ty.clone(),
-            Self::V8 { ty, .. } => ty.clone(),
-        }
+        self.as_type().clone()
     }
 
     pub fn to_cast_from_v8<K>(&self, name: K, scope: &'static str) -> TokenStream
@@ -226,20 +175,20 @@ impl InferredType {
         }
     }
 
-    pub fn to_result<K>(&self, name: K) -> TokenStream
+    pub fn to_cast_into_output<K>(&self, name: K) -> TokenStream
     where
         K: AsRef<str>,
     {
         let ident = format_ident!("{}", name.as_ref());
         match self {
             Self::V8 { nullish: true, .. } => quote! {
-                Ok(#ident.map(Into::into))
+                #ident.map(Into::into)
             },
             Self::V8 { nullish: false, .. } => quote! {
-                Ok(Into::into(#ident))
+                Into::into(#ident)
             },
             Self::Serde { .. } => quote! {
-                Ok(#ident)
+                #ident
             },
         }
     }
@@ -250,7 +199,7 @@ impl InferredType {
     {
         let unwrap_data = unwrap_v8_local("data");
         let from_data = self.to_cast_from_v8("data", "scope");
-        let return_ok = self.to_result("data");
+        let return_ok = self.to_cast_into_output("data");
         let return_ty = self.to_type();
         quote! {
             #[inline(always)]
@@ -271,7 +220,7 @@ impl InferredType {
                 let data = #unwrap_data;
                 let data = #from_data
                     .context("failed to convert from v8 value")?;
-                #return_ok
+                Ok(#return_ok)
             }
         }
     }
@@ -305,6 +254,61 @@ impl InferredType {
         }
     }
 
+    pub fn new_v8(ty: &str) -> Self {
+        [format_ident!("v8"), format_ident!("{}", ty)]
+            .map(PathSegment::from)
+            .pipe(Punctuated::<PathSegment, Token![::]>::from_iter)
+            .pipe(|segments| Path {
+                segments,
+                leading_colon: None,
+            })
+            .pipe(|path| TypePath { path, qself: None })
+            .pipe(Type::Path)
+            .pipe(GenericArgument::Type)
+            .pipe(std::iter::once)
+            .pipe(Punctuated::<GenericArgument, Token![,]>::from_iter)
+            .pipe(|args| AngleBracketedGenericArguments {
+                args,
+                colon2_token: None,
+                lt_token: Token![<](Span::call_site()),
+                gt_token: Token![>](Span::call_site()),
+            })
+            .pipe(PathArguments::AngleBracketed)
+            .pipe(|arguments| PathSegment {
+                ident: format_ident!("Global"),
+                arguments,
+            })
+            .pipe(|global| [format_ident!("v8").into(), global])
+            .pipe(Punctuated::<PathSegment, Token![::]>::from_iter)
+            .pipe(|segments| Path {
+                segments,
+                leading_colon: None,
+            })
+            .pipe(|path| TypePath { path, qself: None })
+            .pipe(Type::Path)
+            .pipe(|ty| Self::V8 {
+                ty,
+                newtype: None,
+                nullish: false,
+            })
+    }
+
+    pub fn non_null(self) -> Self {
+        match self {
+            Self::V8 {
+                nullish: true,
+                ty,
+                newtype,
+            } => Self::V8 {
+                ty,
+                newtype,
+                nullish: false,
+            },
+            Self::V8 { nullish: false, .. } => self,
+            Self::Serde { .. } => self,
+        }
+    }
+
     fn mention_v8(&self) -> TokenStream {
         match self {
             Self::V8 {
@@ -312,6 +316,12 @@ impl InferredType {
             } => quote! { #v8 },
             _ => quote! { v8 },
         }
+    }
+}
+
+impl Default for TypeCast {
+    fn default() -> Self {
+        Self::new_v8("Value")
     }
 }
 
