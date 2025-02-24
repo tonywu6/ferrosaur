@@ -9,7 +9,7 @@ use tap::{Pipe, Tap};
 
 use crate::util::{
     BindFunction, FlagName, FunctionLength, FunctionThis, NewtypeMeta, NonFatalErrors, PropertyKey,
-    TypeCast, Unary,
+    TypeCast,
 };
 
 use super::{name_or_symbol, property_key, self_arg, Constructor, Function, MaybeAsync};
@@ -59,8 +59,8 @@ impl Callee {
     ) -> Self {
         let return_ty = TypeCast::from(sig.output.clone());
 
-        let name = match (class, &sig.output) {
-            (Some(Unary(class)), _) => PropertyKey::String(class),
+        let name = match (class.into_inner().into_inner(), &sig.output) {
+            (Some(class), _) => PropertyKey::String(class),
 
             (None, ReturnType::Type(..)) => {
                 let ty = return_ty.as_type();
@@ -207,13 +207,24 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
                         FnArg::Typed(arg)
                     }
                     expr => {
-                        "spread argument should be written like `name..`\nfound extra patterns"
+                        "spread argument should be written as `..name`\nfound extra patterns"
                             .pipe(Argument::error)
                             .with_span(expr)
                             .pipe(|e| errors.push(e));
                         FnArg::Typed(arg)
                     }
                 },
+
+                Pat::Range(PatRange {
+                    start: Some(ref start),
+                    ..
+                }) => {
+                    "spread argument should be written as `..name`"
+                        .pipe(Argument::error)
+                        .with_span(start)
+                        .pipe(|e| errors.push(e));
+                    FnArg::Typed(arg)
+                }
 
                 ref pat => {
                     Argument::error("pattern not supported")
@@ -324,7 +335,7 @@ struct Argument {
 }
 
 impl FlagName for Argument {
-    const PREFIX: &str = "arg";
+    const PREFIX: &'static str = "arg";
 
     fn unit() -> Result<Self> {
         unreachable!()

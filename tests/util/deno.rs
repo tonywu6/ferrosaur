@@ -1,12 +1,13 @@
 use std::{rc::Rc, sync::Arc};
 
 use anyhow::Result;
-use deno_runtime::{deno_fs::InMemoryFs, worker::MainWorker};
+use deno_runtime::{
+    deno_fs::InMemoryFs,
+    worker::{MainWorker, WorkerOptions},
+};
 use tap::Pipe;
 
-mod usage;
-
-use self::usage::{Global, Main};
+use crate::modules::Main;
 
 pub async fn deno() -> Result<(MainWorker, Main)> {
     use deno_runtime::{
@@ -23,7 +24,7 @@ pub async fn deno() -> Result<(MainWorker, Main)> {
     let permissions = RuntimePermissionDescriptorParser::new(fs.clone())
         .pipe(|p| PermissionsContainer::new(Arc::new(p), Permissions::none_without_prompt()));
 
-    let mut rt = MainWorker::bootstrap_from_options(
+    let mut worker = MainWorker::bootstrap_from_options(
         Main::url()?,
         WorkerServiceOptions {
             fs,
@@ -40,45 +41,12 @@ pub async fn deno() -> Result<(MainWorker, Main)> {
             compiled_wasm_module_store: Default::default(),
             v8_code_cache: Default::default(),
         },
-        Default::default(),
+        WorkerOptions {
+            ..Default::default()
+        },
     );
 
-    let main = Main::new(&mut rt.js_runtime).await?;
+    let main = Main::new(&mut worker.js_runtime).await?;
 
-    Ok((rt, main))
-}
-
-#[tokio::test]
-async fn test_calc() -> Result<()> {
-    let (mut rt, main) = deno().await?;
-
-    let rt = &mut rt.js_runtime;
-
-    let calc = main.calc(rt)?;
-
-    let calc = calc
-        .add(16.0, rt)?
-        .sub(4.0, rt)?
-        .mul(7.0, rt)?
-        .div(2.0, rt)?;
-
-    assert_eq!(calc.value(rt)?, 42.0);
-
-    Global::new(rt)
-        .console(rt)?
-        .log(vec!["calc?".into()], &[calc.clone().into()], rt)?;
-
-    println!("{}", calc.to_string(rt)?);
-
-    let fib = main.fibonacci(rt)?;
-
-    let fib = fib
-        .iter(rt)?
-        .into_iter(rt)
-        .take(100)
-        .collect::<Result<Vec<_>>>()?;
-
-    println!("{fib:?}");
-
-    Ok(())
+    Ok((worker, main))
 }

@@ -8,7 +8,7 @@ use tap::Pipe;
 pub struct FlagLike<T>(pub T);
 
 pub trait FlagName: Sized {
-    const PREFIX: &str;
+    const PREFIX: &'static str;
 
     fn unit() -> Result<Self>;
 
@@ -105,7 +105,7 @@ where
 }
 
 pub trait FlagEnum: FlagName {
-    const PREFIXES: &[&str];
+    const PREFIXES: &'static [&'static str];
 }
 
 impl<T> FlagLike<T>

@@ -20,6 +20,39 @@ use crate::{
 mod function;
 mod property;
 
+#[derive(Debug, Clone, FromMeta)]
+enum JsProperty {
+    Prop(FlagLike<Property>),
+    Func(FlagLike<Function>),
+    New(FlagLike<Constructor>),
+}
+
+type PropKeyString = StringLike<String>;
+
+type PropKeySymbol = StringLike<WellKnown>;
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Property {
+    name: Option<Unary<PropKeyString>>,
+    #[darling(rename = "Symbol")]
+    symbol: Option<Unary<PropKeySymbol>>,
+    with_setter: Flag,
+}
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Function {
+    name: Option<Unary<PropKeyString>>,
+    #[darling(rename = "Symbol")]
+    symbol: Option<Unary<PropKeySymbol>>,
+    #[darling(default)]
+    this: FunctionThis,
+}
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Constructor {
+    class: Option<Unary<PropKeyString>>,
+}
+
 pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
     let errors = Accumulator::default();
 
@@ -123,39 +156,6 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
     Ok(quote! { #(#impl_)* })
 }
 
-#[derive(Debug, Clone, FromMeta)]
-enum JsProperty {
-    Prop(FlagLike<Property>),
-    Func(FlagLike<Function>),
-    New(FlagLike<Constructor>),
-}
-
-type PropName = StringLike<String>;
-
-type PropSymbol = StringLike<WellKnown>;
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct Property {
-    name: Option<Unary<PropName>>,
-    #[darling(rename = "Symbol")]
-    symbol: Option<Unary<PropSymbol>>,
-    with_setter: Flag,
-}
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct Function {
-    name: Option<Unary<PropName>>,
-    #[darling(rename = "Symbol")]
-    symbol: Option<Unary<PropSymbol>>,
-    #[darling(default)]
-    this: FunctionThis,
-}
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct Constructor {
-    class: Option<Unary<String>>,
-}
-
 #[derive(Debug, Clone, Copy)]
 enum MaybeAsync {
     Sync,
@@ -251,8 +251,8 @@ fn self_arg<F: FlagName>(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Re
 
 fn name_or_symbol<F: FlagName>(
     span: Span,
-    name: Option<PropName>,
-    symbol: Option<PropSymbol>,
+    name: Option<PropKeyString>,
+    symbol: Option<PropKeySymbol>,
 ) -> (Option<PropertyKey<String>>, Option<Error>) {
     match (name, symbol) {
         (None, None) => (None, None),
@@ -276,7 +276,7 @@ fn property_key(src: &Ident, alt: Option<PropertyKey<String>>) -> PropertyKey<St
 }
 
 impl FlagName for JsProperty {
-    const PREFIX: &str = "js";
+    const PREFIX: &'static str = "js";
 
     fn unit() -> Result<Self> {
         JsProperty::from_word()
@@ -284,11 +284,12 @@ impl FlagName for JsProperty {
 }
 
 impl FlagEnum for JsProperty {
-    const PREFIXES: &[&str] = &[Property::PREFIX, Function::PREFIX, Constructor::PREFIX];
+    const PREFIXES: &'static [&'static str] =
+        &[Property::PREFIX, Function::PREFIX, Constructor::PREFIX];
 }
 
 impl FlagName for Property {
-    const PREFIX: &str = "prop";
+    const PREFIX: &'static str = "prop";
 
     fn unit() -> Result<Self> {
         Ok(Default::default())
@@ -296,7 +297,7 @@ impl FlagName for Property {
 }
 
 impl FlagName for Function {
-    const PREFIX: &str = "func";
+    const PREFIX: &'static str = "func";
 
     fn unit() -> Result<Self> {
         Ok(Default::default())
@@ -304,7 +305,7 @@ impl FlagName for Function {
 }
 
 impl FlagName for Constructor {
-    const PREFIX: &str = "new";
+    const PREFIX: &'static str = "new";
 
     fn unit() -> Result<Self> {
         Ok(Default::default())

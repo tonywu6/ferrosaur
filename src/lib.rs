@@ -203,7 +203,7 @@ impl Default for InnerType {
 }
 
 impl FlagName for JsItem {
-    const PREFIX: &str = "js";
+    const PREFIX: &'static str = "js";
 
     fn unit() -> Result<Self> {
         JsItem::from_word()
@@ -211,7 +211,7 @@ impl FlagName for JsItem {
 }
 
 impl FlagEnum for JsItem {
-    const PREFIXES: &[&str] = &[
+    const PREFIXES: &'static [&'static str] = &[
         Module::PREFIX,
         GlobalThis::PREFIX,
         Value::PREFIX,
@@ -220,7 +220,7 @@ impl FlagEnum for JsItem {
 }
 
 impl FlagName for Module {
-    const PREFIX: &str = "module";
+    const PREFIX: &'static str = "module";
 
     fn unit() -> Result<Self> {
         Module::from_word()
@@ -228,7 +228,7 @@ impl FlagName for Module {
 }
 
 impl FlagName for GlobalThis {
-    const PREFIX: &str = "global_this";
+    const PREFIX: &'static str = "global_this";
 
     fn unit() -> Result<Self> {
         Ok(Self)
@@ -236,7 +236,7 @@ impl FlagName for GlobalThis {
 }
 
 impl FlagName for Value {
-    const PREFIX: &str = "value";
+    const PREFIX: &'static str = "value";
 
     fn unit() -> Result<Self> {
         Ok(Default::default())
@@ -244,7 +244,7 @@ impl FlagName for Value {
 }
 
 impl FlagName for Properties {
-    const PREFIX: &str = "properties";
+    const PREFIX: &'static str = "properties";
 
     fn unit() -> Result<Self> {
         Ok(Self)
@@ -252,7 +252,7 @@ impl FlagName for Properties {
 }
 
 impl FlagName for Iterator_ {
-    const PREFIX: &str = "iterator";
+    const PREFIX: &'static str = "iterator";
 
     fn unit() -> Result<Self> {
         Ok(Self)
