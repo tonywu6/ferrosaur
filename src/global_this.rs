@@ -7,7 +7,11 @@ use syn::{
 };
 
 use crate::{
-    util::{inner_mod_name, use_prelude, FatalErrors, NoGenerics},
+    util::{
+        inner_mod_name, use_deno, use_prelude,
+        v8_conv_impl::{impl_as_ref_inner, impl_from_inner, impl_to_v8},
+        FatalErrors, NoGenerics,
+    },
     GlobalThis,
 };
 
@@ -35,6 +39,15 @@ pub fn global_this(_: GlobalThis, item: TokenStream) -> Result<TokenStream> {
 
     let use_prelude = use_prelude();
 
+    let use_deno = use_deno();
+
+    let v8_inner = quote! { v8::Object };
+    let v8_outer = quote! { v8::Global<#v8_inner> };
+
+    let impl_from_inner = impl_from_inner(&v8_outer, &ident);
+    let impl_as_ref = impl_as_ref_inner(&v8_outer, &ident);
+    let impl_to_v8 = impl_to_v8(&v8_inner, &ident);
+
     errors.finish()?;
 
     Ok(quote! {
@@ -44,10 +57,8 @@ pub fn global_this(_: GlobalThis, item: TokenStream) -> Result<TokenStream> {
         #[doc(hidden)]
         mod #inner_mod {
             use super::*;
-
             #use_prelude
-
-            use deno_core::{v8, JsRuntime};
+            #use_deno
 
             #(#attrs)*
             pub struct #ident(v8::Global<v8::Object>);
@@ -64,19 +75,9 @@ pub fn global_this(_: GlobalThis, item: TokenStream) -> Result<TokenStream> {
                 }
             }
 
-            #[automatically_derived]
-            impl AsRef<v8::Global<v8::Object>> for #ident {
-                fn as_ref(&self) -> &v8::Global<v8::Object> {
-                    &self.0
-                }
-            }
-
-            #[automatically_derived]
-            impl From<#ident> for v8::Global<v8::Object> {
-                fn from(value: #ident) -> Self {
-                    value.0
-                }
-            }
+            #impl_from_inner
+            #impl_as_ref
+            #impl_to_v8
         }
     })
 }

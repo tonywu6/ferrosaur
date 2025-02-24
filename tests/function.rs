@@ -2,10 +2,9 @@ use anyhow::Result;
 use deno_runtime::deno_core::v8;
 use serde_json::json;
 
-mod modules;
-mod util;
+mod fixture;
 
-use self::{modules::global::Global, util::deno::deno};
+use self::fixture::{deno::deno, Global};
 
 #[tokio::test]
 async fn test_functions() -> Result<()> {
@@ -19,11 +18,11 @@ async fn test_functions() -> Result<()> {
 
     assert_eq!(rectangle.value(rt)?, json!("rect 3x4"));
 
-    assert!(rectangle.square(rt)?.is_none());
+    assert!(rectangle.square(rt)?.0.is_none());
 
     rectangle.set_width(4.0, rt)?;
 
-    assert!(rectangle.square(rt)?.is_some());
+    assert!(rectangle.square(rt)?.0.is_some());
 
     Ok(())
 }

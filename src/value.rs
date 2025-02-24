@@ -1,13 +1,19 @@
 use darling::{Error, FromDeriveInput, Result};
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{
     parse::{Parse, Parser},
     Attribute, DeriveInput, Ident,
 };
 
 use crate::{
-    util::{inner_mod_name, use_prelude, FatalErrors, NoGenerics},
+    util::{
+        inner_mod_name, use_deno, use_prelude,
+        v8_conv_impl::{
+            impl_as_ref_inner, impl_from_inner, impl_from_v8, impl_into_inner, impl_to_v8,
+        },
+        FatalErrors, NoGenerics,
+    },
     InnerType, Value,
 };
 
@@ -31,45 +37,24 @@ pub fn value(value: Value, item: TokenStream) -> Result<TokenStream> {
         ident, vis, attrs, ..
     } = item;
 
-    let Value { serde, of } = value;
+    let Value { of: inner_ty } = value;
 
-    let inner_ty = match of {
-        InnerType(ty) => quote! {
+    let outer_ty = match inner_ty {
+        InnerType(ref ty) => quote! {
             v8::Global<#ty>
         },
     };
 
-    let impl_serde = if serde.is_present() {
-        quote! {
-            #[automatically_derived]
-            impl<'de> deno_core::serde::Deserialize<'de> for #ident {
-                fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
-                where
-                    D: deno_core::serde::Deserializer<'de>,
-                {
-                    let value = deno_core::serde_v8::GlobalValue::deserialize(deserializer)?;
-                    Ok(Self(value.v8_value))
-                }
-            }
-
-            #[automatically_derived]
-            impl deno_core::serde::Serialize for #ident {
-                fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
-                where
-                    S: deno_core::serde::Serializer,
-                {
-                    deno_core::serde_v8::GlobalValue { v8_value: self.0.clone() }
-                        .serialize(serializer)
-                }
-            }
-        }
-    } else {
-        quote! {}
-    };
+    let impl_from = impl_from_inner(&outer_ty, &ident);
+    let impl_into = impl_into_inner(&outer_ty, &ident);
+    let impl_as_ref = impl_as_ref_inner(&outer_ty, &ident);
+    let impl_from_v8 = impl_from_v8(&inner_ty.0.to_token_stream(), &ident);
+    let impl_to_v8 = impl_to_v8(&inner_ty.0.to_token_stream(), &ident);
 
     let inner_mod = inner_mod_name("value", &ident);
 
-    let prelude = use_prelude();
+    let use_prelude = use_prelude();
+    let use_deno = use_deno();
 
     errors.finish()?;
 
@@ -80,37 +65,17 @@ pub fn value(value: Value, item: TokenStream) -> Result<TokenStream> {
         #[doc(hidden)]
         mod #inner_mod {
             use super::*;
-
-            #prelude
-
-            #[allow(unused)]
-            use deno_core::v8;
+            #use_prelude
+            #use_deno
 
             #(#attrs)*
-            pub struct #ident(#inner_ty);
+            pub struct #ident(#outer_ty);
 
-            #[automatically_derived]
-            impl From<#inner_ty> for #ident {
-                fn from(value: #inner_ty) -> Self {
-                    Self(value)
-                }
-            }
-
-            #[automatically_derived]
-            impl From<#ident> for #inner_ty {
-                fn from(value: #ident) -> Self {
-                    value.0
-                }
-            }
-
-            #[automatically_derived]
-            impl AsRef<#inner_ty> for #ident {
-                fn as_ref(&self) -> &#inner_ty {
-                    &self.0
-                }
-            }
-
-            #impl_serde
+            #impl_from
+            #impl_into
+            #impl_as_ref
+            #impl_from_v8
+            #impl_to_v8
         }
     })
 }

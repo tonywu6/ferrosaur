@@ -9,8 +9,8 @@ use tap::Pipe;
 
 use crate::{
     util::{
-        only_inherent_impl, use_prelude, BindFunction, FatalErrors, FlagName, FunctionLength,
-        FunctionThis, TypeCast,
+        only_inherent_impl, use_deno, use_prelude, BindFunction, FatalErrors, FlagName,
+        FunctionLength, FunctionThis, V8Conv,
     },
     Iterator_,
 };
@@ -42,7 +42,7 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
         .collect::<Vec<_>>();
 
     let item_type = match item_type.len() {
-        0 => TypeCast::default(),
+        0 => V8Conv::default(),
         1 => item_type.into_iter().next().unwrap().0,
         _ => {
             let mut item_type = item_type.into_iter();
@@ -57,8 +57,6 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
 
     let return_ty = item_type.to_type();
 
-    let use_prelude = use_prelude();
-
     let fn_value = BindFunction {
         name: "next".into(),
         this: FunctionThis::Self_,
@@ -67,18 +65,11 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
     }
     .to_function();
 
-    let get_value = TypeCast::default().to_getter(&"value".into());
+    let get_value = V8Conv::default().to_getter(&"value".into());
 
-    let get_done = TypeCast::default().to_getter(&"done".into());
+    let get_done = V8Conv::default().to_getter(&"done".into());
 
-    let into_item = {
-        let from_v8 = item_type.to_cast_from_v8("value", "scope");
-        let into_item = item_type.to_cast_into_output("value");
-        quote! {{
-            let value = #from_v8?;
-            #into_item
-        }}
-    };
+    let into_item = item_type.to_cast_from_v8("value", "scope");
 
     let fn_next = quote! {
         pub fn next(&mut self, rt: &mut JsRuntime) -> Result<Option<#return_ty>>
@@ -86,7 +77,7 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
             let scope = &mut rt.handle_scope();
             let next = {
                 #fn_value
-                let this = AsRef::<v8::Global<_>>::as_ref(self);
+                let this = ToV8::to_v8(&*self, scope)?;
                 let this = v8::Local::new(scope, this);
                 call(scope, this, [])
                     .context("failed to call `next` on iterator")?
@@ -109,10 +100,10 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
                 if value.is_undefined() {
                     Ok(None)
                 } else {
-                    Ok(Some(#into_item))
+                    Ok(Some(#into_item?))
                 }
             } else {
-                Ok(Some(#into_item))
+                Ok(Some(#into_item?))
             }
         }
     };
@@ -142,31 +133,28 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
         }
     };
 
+    let use_prelude = use_prelude();
+    let use_deno = use_deno();
+
     errors.finish()?;
 
     Ok(quote! {
         const _: () = {
             #use_prelude
-
-            #[allow(unused)]
-            use deno_core::{
-                anyhow::{anyhow, Context, Result}, error::JsError,
-                ascii_str, serde_v8, v8, FastString, JsRuntime,
-            };
+            #use_deno
 
             #(#attrs)*
             impl <#params> #self_ty
             #where_clause
             {
                 #fn_next
-
                 #fn_into_iter
             }
         };
     })
 }
 
-fn item_type(item: ImplItem) -> Result<(TypeCast, Ident)> {
+fn item_type(item: ImplItem) -> Result<(V8Conv, Ident)> {
     let ImplItem::Type(ty) = item else {
         return "unexpected item\nmove this item to another impl block"
             .pipe(Iterator_::error)

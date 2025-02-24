@@ -2,7 +2,7 @@ use darling::FromMeta;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use super::{unwrap_v8_local, PropertyKey, TypeCast};
+use super::{unwrap_v8_local, PropertyKey, V8Conv};
 
 #[derive(Debug, Clone)]
 pub struct BindFunction<K> {
@@ -29,7 +29,7 @@ pub enum FunctionThis {
 
 impl<K: AsRef<str>> BindFunction<K> {
     pub fn to_function(&self) -> TokenStream {
-        let func = TypeCast::new_v8("Function");
+        let func = V8Conv::new_v8("Function");
 
         let get_func = {
             let getter = func.to_getter(&self.name);
@@ -114,6 +114,7 @@ impl<K: AsRef<str>> BindFunction<K> {
             fn call<'a, T>(
                 scope: &mut v8::HandleScope<'a>,
                 this: T,
+                #[allow(unused)]
                 args: #args_ty,
             ) -> Result<v8::Global<v8::Value>>
             where

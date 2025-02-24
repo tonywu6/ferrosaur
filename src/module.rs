@@ -7,7 +7,11 @@ use syn::{
 };
 
 use crate::{
-    util::{inner_mod_name, use_prelude, FatalErrors, NoGenerics, Unary},
+    util::{
+        inner_mod_name, use_prelude,
+        v8_conv_impl::{impl_as_ref_inner, impl_from_inner, impl_to_v8},
+        FatalErrors, NoGenerics, Unary,
+    },
     FastString, ImportMetaUrl, Module,
 };
 
@@ -47,14 +51,17 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
 
         #[allow(unused)]
         use deno_core::{
+            convert::ToV8,
             anyhow::{Context, Result}, ascii_str_include, v8, FastStaticString,
             JsRuntime, ModuleId, ModuleSpecifier,
         };
     };
 
+    let item_ty = quote! { v8::Global<v8::Object> };
+
     let item = quote! {
         #(#attrs)*
-        pub struct #ident(v8::Global<v8::Object>);
+        pub struct #ident(#item_ty);
     };
 
     let const_module_src = match fast {
@@ -138,6 +145,10 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
         quote! { load_main_es_module }
     };
 
+    let impl_as_ref = impl_as_ref_inner(&item_ty, &ident);
+    let impl_from = impl_from_inner(&item_ty, &ident);
+    let impl_to_v8 = impl_to_v8(&quote! { v8::Object }, &ident);
+
     let inner_mod = inner_mod_name("module", &ident);
 
     let reexport = quote! {
@@ -188,19 +199,9 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
                 }
             }
 
-            #[automatically_derived]
-            impl AsRef<v8::Global<v8::Object>> for #ident {
-                fn as_ref(&self) -> &v8::Global<v8::Object> {
-                    &self.0
-                }
-            }
-
-            #[automatically_derived]
-            impl From<#ident> for v8::Global<v8::Object> {
-                fn from(value: #ident) -> Self {
-                    value.0
-                }
-            }
+            #impl_as_ref
+            #impl_from
+            #impl_to_v8
         }
     })
 }

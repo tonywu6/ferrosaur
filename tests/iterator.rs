@@ -1,9 +1,8 @@
 use anyhow::Result;
 
-mod modules;
-mod util;
+mod fixture;
 
-use crate::{modules::iter::Iter, util::deno::deno};
+use self::fixture::{deno::deno, Iter};
 
 #[tokio::test]
 async fn test_iterator() -> Result<()> {

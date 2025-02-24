@@ -9,7 +9,7 @@ use tap::{Pipe, Tap};
 
 use crate::util::{
     BindFunction, FlagName, FunctionLength, FunctionThis, NewtypeMeta, NonFatalErrors, PropertyKey,
-    TypeCast,
+    V8Conv,
 };
 
 use super::{name_or_symbol, property_key, self_arg, Constructor, Function, MaybeAsync};
@@ -20,7 +20,7 @@ pub enum Callable {
 }
 
 struct Callee {
-    return_ty: TypeCast,
+    return_ty: V8Conv,
     this: FunctionThis,
     ctor: bool,
     name: PropertyKey<String>,
@@ -57,7 +57,7 @@ impl Callee {
         sig: &Signature,
         errors: &mut Accumulator,
     ) -> Self {
-        let return_ty = TypeCast::from(sig.output.clone());
+        let return_ty = V8Conv::from(sig.output.clone());
 
         let name = match (class.into_inner().into_inner(), &sig.output) {
             (Some(class), _) => PropertyKey::String(class),
@@ -152,7 +152,7 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
         .map(|arg| {
             let FnArg::Typed(arg) = arg else { return arg };
 
-            let ty = TypeCast::from((*arg.ty).clone());
+            let ty = V8Conv::from((*arg.ty).clone());
 
             match *arg.pat {
                 Pat::Ident(ref ident) => {
@@ -191,7 +191,7 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
                     {
                         let spread = true;
                         let ident = path.path.segments[0].ident.clone();
-                        let ty = ty.non_null();
+                        // let ty = ty.non_null();
                         let arg = arg.tap_mut(|arg| {
                             arg.pat = Pat::Ident(PatIdent {
                                 attrs: vec![],
@@ -266,14 +266,13 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
         }
         ReturnType::Type(..) => {
             let from_retval = return_ty.to_cast_from_v8("retval", "scope");
-            let into_retval = return_ty.to_cast_into_output("retval");
             quote! {{
                 let scope = &mut _rt.handle_scope();
                 let retval = v8::Local::new(scope, retval);
                 let retval = #from_retval
                     .context("failed to convert returned value")
                     .context(#err_ctx)?;
-                Ok(#into_retval)
+                Ok(retval)
             }}
         }
     };
@@ -299,7 +298,7 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
             let retval = {
                 #fn_call
                 let scope = &mut _rt.handle_scope();
-                let this = AsRef::<v8::Global<_>>::as_ref(self);
+                let this = ToV8::to_v8(self, scope)?;
                 let this = v8::Local::new(scope, this);
                 call(scope, this, args)
                     .context(#err_ctx)?
@@ -330,7 +329,7 @@ impl From<Constructor> for Callable {
 
 struct Argument {
     ident: Ident,
-    ty: TypeCast,
+    ty: V8Conv,
     spread: bool,
 }
 

@@ -81,7 +81,6 @@ struct GlobalThis;
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Value {
-    serde: Flag,
     #[darling(default)]
     of: InnerType,
 }

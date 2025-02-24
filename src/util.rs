@@ -12,16 +12,17 @@ mod bind_function;
 mod flag_like;
 mod property_key;
 mod string_like;
-mod type_cast;
 mod unary;
+mod v8_conv;
+pub mod v8_conv_impl;
 
 pub use self::{
     bind_function::{BindFunction, FunctionLength, FunctionThis},
     flag_like::{FlagEnum, FlagLike, FlagName},
     property_key::{PropertyKey, WellKnown},
     string_like::StringLike,
-    type_cast::TypeCast,
     unary::Unary,
+    v8_conv::V8Conv,
 };
 
 pub trait TokenStreamResult {
@@ -245,7 +246,7 @@ pub fn use_prelude() -> TokenStream {
         extern crate alloc as _alloc;
         #[allow(unused)]
         use ::core::{
-            convert::{AsRef, From, Into},
+            convert::{AsRef, From, Infallible, Into},
             default::Default,
             marker::{Send, Sync},
             option::Option::{self, None, Some},
@@ -253,6 +254,19 @@ pub fn use_prelude() -> TokenStream {
         };
         #[allow(unused)]
         use _alloc::vec::Vec;
+    }
+}
+
+pub fn use_deno() -> TokenStream {
+    quote! {
+        #[allow(unused)]
+        use deno_core::{
+            anyhow::{anyhow, Context, Result},
+            ascii_str,
+            convert::{FromV8, ToV8},
+            error::JsError,
+            serde_v8, v8, FastString, JsRuntime,
+        };
     }
 }
 

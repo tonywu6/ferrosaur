@@ -11,14 +11,14 @@ use tap::Pipe;
 
 use crate::{
     util::{
-        only_inherent_impl, use_prelude, FatalErrors, FlagEnum, FlagLike, FlagName, FunctionThis,
-        MergeErrors, PropertyKey, StringLike, Unary, WellKnown,
+        only_inherent_impl, use_deno, use_prelude, FatalErrors, FlagEnum, FlagLike, FlagName,
+        FunctionThis, MergeErrors, PropertyKey, StringLike, Unary, WellKnown,
     },
     Properties,
 };
 
-mod function;
-mod property;
+mod func;
+mod prop;
 
 #[derive(Debug, Clone, FromMeta)]
 enum JsProperty {
@@ -81,17 +81,14 @@ pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
 
     let use_prelude = use_prelude();
 
+    let use_deno = use_deno();
+
     errors.finish()?;
 
     Ok(quote! {
         const _: () = {
             #use_prelude
-
-            #[allow(unused)]
-            use deno_core::{
-                anyhow::{anyhow, Context, Result}, error::JsError,
-                ascii_str, serde_v8, v8, FastString, JsRuntime,
-            };
+            #use_deno
 
             #(#attrs)*
             impl <#params> #self_ty
@@ -141,9 +138,9 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
         FlagLike::<JsProperty>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
 
     let (impl_, errors) = match prop {
-        JsProperty::Prop(FlagLike(prop)) => property::impl_property(prop, sig),
-        JsProperty::Func(FlagLike(func)) => function::impl_function(func.into(), sig),
-        JsProperty::New(FlagLike(ctor)) => function::impl_function(ctor.into(), sig),
+        JsProperty::Prop(FlagLike(prop)) => prop::impl_property(prop, sig),
+        JsProperty::Func(FlagLike(func)) => func::impl_function(func.into(), sig),
+        JsProperty::New(FlagLike(ctor)) => func::impl_function(ctor.into(), sig),
     }
     .or_fatal(errors)?;
 

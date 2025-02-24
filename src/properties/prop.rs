@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 use syn::{spanned::Spanned, Generics, ReturnType, Signature};
 use tap::Pipe;
 
-use crate::util::{FlagName, NewtypeMeta, NonFatalErrors, TypeCast};
+use crate::util::{FlagName, NewtypeMeta, NonFatalErrors, V8Conv};
 
 use super::{name_or_symbol, property_key, self_arg, MaybeAsync, Property};
 
@@ -55,7 +55,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         Ok(())
     });
 
-    let return_ty = TypeCast::from(output);
+    let return_ty = V8Conv::from(output);
 
     let name = name_or_symbol::<Property>(ident.span(), name.into_inner(), symbol.into_inner())
         .non_fatal(&mut errors);
@@ -75,7 +75,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
             {
                 #getter
                 let scope = &mut rt.handle_scope();
-                let this = AsRef::<v8::Global<_>>::as_ref(self);
+                let this = ToV8::to_v8(self, scope)?;
                 let this = v8::Local::new(scope, this);
                 getter(scope, this).context(#err)
             }
@@ -97,7 +97,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
             {
                 #setter
                 let scope = &mut _rt.handle_scope();
-                let this = AsRef::<v8::Global<_>>::as_ref(self);
+                let this = ToV8::to_v8(self, scope)?;
                 let this = v8::Local::new(scope, this);
                 setter(scope, this, data).context(#err)?;
                 Ok(self)
