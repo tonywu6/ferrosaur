@@ -1,9 +1,7 @@
 use deno_bindgen3::js;
-use deno_runtime::deno_core;
+use deno_core::convert::OptionNull;
 
 pub mod deno;
-
-use self::deno::OptionNull;
 
 #[js(global_this)]
 pub struct Global;

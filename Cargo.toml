@@ -18,7 +18,11 @@ tap = "1.0.1"
 
 [dev-dependencies]
 anyhow = "1.0.95"
-deno_runtime = "=0.192.0"
+deno_console = "=0.192.0"
+deno_core = "=0.338.0"
+deno_url = "=0.192.0"
+deno_web = "=0.223.0"
+deno_webidl = "=0.192.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.139"
 tokio = { version = "1", features = ["macros"] }

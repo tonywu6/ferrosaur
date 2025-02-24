@@ -1,18 +1,18 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use deno_runtime::deno_core::v8;
+use deno_core::v8;
 use serde_json::json;
 
 mod fixture;
 
-use self::fixture::{deno::deno, Global};
+use self::fixture::deno::deno;
 
 #[tokio::test]
 async fn test_functions() -> Result<()> {
-    let (mut worker, main) = deno().await?;
+    let (mut rt, main) = deno().await?;
 
-    let rt = &mut worker.js_runtime;
+    let rt = &mut rt;
 
     let rectangle = main.rectangle(3.0, 4.0, rt)?;
 
@@ -31,9 +31,9 @@ async fn test_functions() -> Result<()> {
 
 #[tokio::test]
 async fn test_this() -> Result<()> {
-    let (mut worker, main) = deno().await?;
+    let (mut rt, main) = deno().await?;
 
-    let rt = &mut worker.js_runtime;
+    let rt = &mut rt;
 
     let checker = main.this_checker(rt)?;
 
@@ -57,9 +57,9 @@ async fn test_this() -> Result<()> {
 
 #[tokio::test]
 async fn test_promise() -> Result<()> {
-    let (mut worker, main) = deno().await?;
+    let (mut rt, main) = deno().await?;
 
-    let rt = &mut worker.js_runtime;
+    let rt = &mut rt;
 
     let resolved = tokio::time::timeout(
         Duration::from_millis(60),
@@ -74,19 +74,7 @@ async fn test_promise() -> Result<()> {
 
 #[tokio::test]
 async fn test_variadic_fn() -> Result<()> {
-    let (mut worker, _) = deno().await?;
-
-    let rt = &mut worker.js_runtime;
-
-    let global = Global::new(rt);
-
-    let values = {
-        let scope = &mut rt.handle_scope();
-        let arg0 = v8::undefined(scope).cast::<v8::Value>();
-        let arg1 = v8::Number::new(scope, 1.0).cast();
-        let arg2 = v8::Boolean::new(scope, true).cast();
-        [arg0, arg1, arg2].map(|a| v8::Global::new(scope, a))
-    };
+    deno().await?;
 
     // TODO: capture stdout
 

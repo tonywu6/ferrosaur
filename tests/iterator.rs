@@ -6,9 +6,9 @@ use self::fixture::{deno::deno, Iter};
 
 #[tokio::test]
 async fn test_iterator() -> Result<()> {
-    let (mut worker, _) = deno().await?;
+    let (mut rt, _) = deno().await?;
 
-    let rt = &mut worker.js_runtime;
+    let rt = &mut rt;
 
     let iter = Iter::new(rt).await?;
 
