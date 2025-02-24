@@ -36,6 +36,9 @@ impl Main {
 
     #[js(new(class(ThisConsideredHarmful)))]
     pub fn this_checker(&self) -> ThisChecker {}
+
+    #[js(func)]
+    pub async fn sleep(&self, value: bool, ms: serde<usize>) -> bool {}
 }
 
 #[js(value)]

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use deno_runtime::deno_core::v8;
 use serde_json::json;
@@ -49,6 +51,23 @@ async fn test_this() -> Result<()> {
         let this = v8::Local::new(scope, this);
         assert!(this.is_undefined());
     }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_promise() -> Result<()> {
+    let (mut worker, main) = deno().await?;
+
+    let rt = &mut worker.js_runtime;
+
+    let resolved = tokio::time::timeout(
+        Duration::from_millis(60),
+        main.sleep(true, Duration::from_millis(50).as_millis() as usize, rt),
+    )
+    .await??;
+
+    assert!(resolved);
 
     Ok(())
 }

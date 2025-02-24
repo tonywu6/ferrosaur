@@ -249,9 +249,11 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
     .to_function();
 
     let await_retval = match fn_color {
-        MaybeAsync::Async(_) => quote! {
-            _rt.resolve(retval).await?
-        },
+        MaybeAsync::Async(_) => quote! {{
+            let future = _rt.resolve(retval);
+            _rt.with_event_loop_promise(future, Default::default())
+                .await?
+        }},
         MaybeAsync::Sync => quote! {
             retval
         },

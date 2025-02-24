@@ -35,3 +35,6 @@ export class ThisConsideredHarmful {
     return this;
   }
 }
+
+export const sleep = (v, ms) =>
+  new Promise((resolve) => setTimeout(() => resolve(v), ms));
