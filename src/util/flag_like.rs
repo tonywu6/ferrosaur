@@ -4,6 +4,8 @@ use quote::{format_ident, quote};
 use syn::{parse::Parser, spanned::Spanned, Attribute, Expr, Lit, Meta};
 use tap::Pipe;
 
+use super::Caveat;
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FlagLike<T>(pub T);
 
@@ -82,7 +84,7 @@ impl<T> FlagLike<T>
 where
     T: FromMeta + FlagName,
 {
-    pub fn collect(attrs: Vec<Attribute>) -> ((Vec<Self>, Vec<Attribute>), Option<Error>) {
+    pub fn collect(attrs: Vec<Attribute>) -> Caveat<(Vec<Self>, Vec<Attribute>)> {
         let mut errors = Error::accumulator();
         let mut items = Vec::new();
         let attrs = attrs
@@ -100,7 +102,7 @@ where
                 }
             })
             .collect();
-        ((items, attrs), errors.finish().err())
+        ((items, attrs), errors.finish().err()).into()
     }
 }
 
@@ -113,10 +115,7 @@ where
     T: FromMeta + FlagEnum,
 {
     pub fn exactly_one(attrs: Vec<Attribute>, span: Span) -> Result<(Self, Vec<Attribute>)> {
-        let ((items, attrs), error) = Self::collect(attrs);
-        if let Some(error) = error {
-            return Err(error);
-        };
+        let (items, attrs) = Self::collect(attrs).into_result()?;
         match items.len() {
             1 => Ok((items.into_iter().next().unwrap(), attrs)),
             n => {

@@ -55,7 +55,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         Ok(())
     });
 
-    let return_ty = V8Conv::from(output);
+    let return_ty = V8Conv::from_output(output).non_fatal(&mut errors);
 
     let name = name_or_symbol::<Property>(ident.span(), name.into_inner(), symbol.into_inner())
         .non_fatal(&mut errors);

@@ -10,7 +10,7 @@ use tap::Pipe;
 use crate::{
     util::{
         only_inherent_impl, use_deno, use_prelude, BindFunction, FatalErrors, FlagName,
-        FunctionLength, FunctionThis, V8Conv,
+        FunctionLength, FunctionThis, NonFatalErrors, V8Conv,
     },
     Iterator_,
 };
@@ -223,5 +223,7 @@ fn item_type(item: ImplItem) -> Result<(V8Conv, Ident)> {
         },
     );
 
-    errors.finish_with((ty.into(), ident))
+    let ty = V8Conv::from_type(ty).non_fatal(&mut errors);
+
+    errors.finish_with((ty, ident))
 }

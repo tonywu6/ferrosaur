@@ -23,6 +23,11 @@ deno_core = "=0.338.0"
 deno_url = "=0.192.0"
 deno_web = "=0.223.0"
 deno_webidl = "=0.192.0"
+insta = { version = "1.40.0", features = ["yaml"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.139"
 tokio = { version = "1", features = ["macros"] }
+
+[profile.dev.package]
+insta.opt-level = 3
+similar.opt-level = 3

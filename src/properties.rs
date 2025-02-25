@@ -1,4 +1,4 @@
-use darling::{error::Accumulator, util::Flag, Error, FromMeta, Result};
+use darling::{error::Accumulator, util::Flag, FromMeta, Result};
 use heck::ToLowerCamelCase;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
@@ -11,8 +11,9 @@ use tap::Pipe;
 
 use crate::{
     util::{
-        only_inherent_impl, use_deno, use_prelude, FatalErrors, FlagEnum, FlagLike, FlagName,
-        FunctionThis, MergeErrors, PropertyKey, StringLike, Unary, WellKnown,
+        only_inherent_impl, use_deno, use_prelude, Caveat, FatalErrors, FlagEnum, FlagLike,
+        FlagName, FunctionThis, MergeErrors, NonFatalErrors, PropertyKey, StringLike, Unary,
+        WellKnown,
     },
     Properties,
 };
@@ -160,14 +161,10 @@ enum MaybeAsync {
 }
 
 impl MaybeAsync {
-    fn only<F: FlagName>(self, sig: &Signature) -> (Self, Option<darling::Error>) {
+    fn only<F: FlagName>(self, sig: &Signature) -> Caveat<Self> {
         let mut errors = Accumulator::default();
 
-        let (color, error) = Self::some::<F>(sig);
-
-        if let Some(error) = error {
-            errors.push(error);
-        }
+        let color = Self::some::<F>(sig).non_fatal(&mut errors);
 
         match self {
             MaybeAsync::Sync => {
@@ -186,15 +183,15 @@ impl MaybeAsync {
             }
         }
 
-        (color, errors.into_one())
+        (color, errors.into_one()).into()
     }
 
-    fn some<F: FlagName>(sig: &Signature) -> (Self, Option<darling::Error>) {
+    fn some<F: FlagName>(sig: &Signature) -> Caveat<Self> {
         let color = match &sig.asyncness {
             None => MaybeAsync::Sync,
             Some(token) => MaybeAsync::Async(*token),
         };
-        (color, Self::supported::<F>(sig).into_one())
+        (color, Self::supported::<F>(sig).into_one()).into()
     }
 
     fn supported<F: FlagName>(sig: &Signature) -> Accumulator {
@@ -250,15 +247,16 @@ fn name_or_symbol<F: FlagName>(
     span: Span,
     name: Option<PropKeyString>,
     symbol: Option<PropKeySymbol>,
-) -> (Option<PropertyKey<String>>, Option<Error>) {
+) -> Caveat<Option<PropertyKey<String>>> {
     match (name, symbol) {
-        (None, None) => (None, None),
-        (Some(StringLike(name)), None) => (Some(PropertyKey::String(name)), None),
-        (None, Some(StringLike(symbol))) => (Some(PropertyKey::Symbol(symbol)), None),
+        (None, None) => None.into(),
+        (Some(StringLike(name)), None) => Some(PropertyKey::String(name)).into(),
+        (None, Some(StringLike(symbol))) => Some(PropertyKey::Symbol(symbol)).into(),
         (Some(StringLike(name)), Some(_)) => (
             Some(PropertyKey::String(name)),
-            Some(F::error("cannot specify both a name and a symbol").with_span(&span)),
-        ),
+            F::error("cannot specify both a name and a symbol").with_span(&span),
+        )
+            .into(),
     }
 }
 

@@ -57,14 +57,44 @@ impl<T> FatalErrors<T> for syn::Result<T> {
     }
 }
 
+#[derive(Debug)]
+pub struct Caveat<T>(pub T, pub Option<Error>);
+
+impl<T> Caveat<T> {
+    pub fn into_result(self) -> Result<T> {
+        match self.1 {
+            None => Ok(self.0),
+            Some(e) => Err(e),
+        }
+    }
+}
+
+impl<T> From<(T, Error)> for Caveat<T> {
+    fn from((ok, err): (T, Error)) -> Self {
+        Self(ok, Some(err))
+    }
+}
+
+impl<T> From<(T, Option<Error>)> for Caveat<T> {
+    fn from((ok, err): (T, Option<Error>)) -> Self {
+        Self(ok, err)
+    }
+}
+
+impl<T> From<T> for Caveat<T> {
+    fn from(value: T) -> Self {
+        Self(value, None)
+    }
+}
+
 pub trait NonFatalErrors<T> {
     #[allow(unused)]
     fn non_fatal(self, errors: &mut Accumulator) -> T;
 }
 
-impl<T> NonFatalErrors<T> for (T, Option<Error>) {
+impl<T> NonFatalErrors<T> for Caveat<T> {
     fn non_fatal(self, errors: &mut Accumulator) -> T {
-        let (ok, err) = self;
+        let Caveat(ok, err) = self;
         if let Some(err) = err {
             errors.push(err);
         }

@@ -1,14 +1,13 @@
 use anyhow::Result;
 
-mod fixture;
+mod compile;
+mod util;
 
-use self::fixture::{deno::deno, Iter};
+use crate::{compile::Iter, util::deno};
 
 #[tokio::test]
 async fn test_iterator() -> Result<()> {
-    let (mut rt, _) = deno().await?;
-
-    let rt = &mut rt;
+    let rt = &mut deno().await?;
 
     let iter = Iter::new(rt).await?;
 

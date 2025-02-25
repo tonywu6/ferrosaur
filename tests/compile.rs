@@ -1,8 +1,6 @@
 use deno_bindgen3::js;
 use deno_core::convert::OptionNull;
 
-pub mod deno;
-
 #[js(global_this)]
 pub struct Global;
 
@@ -12,7 +10,13 @@ impl Global {
     pub fn console(&self) -> Console {}
 }
 
-#[js(value)]
+#[js(properties)]
+impl Global {
+    #[js(func(name(__cargo_test_stdout__)))]
+    pub fn cargo_test_stdout(&self) -> String {}
+}
+
+#[js(value(of(v8::Object)))]
 struct Console;
 
 #[js(properties)]

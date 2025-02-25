@@ -1,3 +1,4 @@
+use darling::Error;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{
@@ -6,7 +7,7 @@ use syn::{
 };
 use tap::Pipe;
 
-use super::{unwrap_v8_local, PropertyKey};
+use super::{unwrap_v8_local, Caveat, PropertyKey};
 
 #[derive(Debug, Clone)]
 pub enum V8Conv {
@@ -15,33 +16,30 @@ pub enum V8Conv {
     Serde { ty: Type, hint: Ident },
 }
 
-impl From<Type> for V8Conv {
-    fn from(mut ty: Type) -> Self {
+impl V8Conv {
+    pub fn from_type(mut ty: Type) -> Caveat<Self> {
         if let UseSerde::Some(hint) = fold_type_hint(&mut ty) {
-            Self::Serde { ty, hint }
-        } else if has_v8_global(&ty) {
-            Self::Value { ty }
+            (Self::Serde { ty, hint }, None)
+        } else if let Caveat(true, err) = has_v8_global(&ty) {
+            (Self::Value { ty }, err)
         } else {
-            Self::Trait { ty }
+            (Self::Trait { ty }, None)
         }
+        .into()
     }
-}
 
-impl From<ReturnType> for V8Conv {
-    fn from(value: ReturnType) -> Self {
-        match value {
+    pub fn from_output(ty: ReturnType) -> Caveat<Self> {
+        match ty {
             ReturnType::Default => TypeTuple {
                 paren_token: Paren(Span::call_site()),
                 elems: Punctuated::new(),
             }
             .pipe(Type::Tuple)
-            .pipe(Self::from),
-            ReturnType::Type(_, ty) => Self::from(*ty),
+            .pipe(Self::from_type),
+            ReturnType::Type(_, ty) => Self::from_type(*ty),
         }
     }
-}
 
-impl V8Conv {
     pub fn as_type(&self) -> &Type {
         match self {
             Self::Trait { ty } => ty,
@@ -211,8 +209,8 @@ impl Default for V8Conv {
     }
 }
 
-fn has_v8_global(ty: &Type) -> bool {
-    fn is_v8_global(ty: &TypePath) -> bool {
+fn has_v8_global(ty: &Type) -> Caveat<bool> {
+    fn is_v8_global(ty: &TypePath) -> Caveat<bool> {
         let TypePath {
             qself: None,
             path:
@@ -222,33 +220,41 @@ fn has_v8_global(ty: &Type) -> bool {
                 },
         } = ty
         else {
-            return false;
+            return false.into();
         };
         if segments.len() != 2 {
-            return false;
+            return false.into();
         }
-        segments[0].ident == "v8"
-            && segments[0].arguments.is_none()
-            && segments[1].ident == "Global"
-            && !segments[1].arguments.is_empty()
+        if segments[0].ident == "v8" && segments[0].arguments.is_none() {
+            if segments[1].ident == "Global" && !segments[1].arguments.is_empty() {
+                true.into()
+            } else {
+                let err = "to return a v8 value directly, wrap this in `v8::Global<...>`"
+                    .pipe(Error::custom)
+                    .with_span(ty);
+                (true, err).into()
+            }
+        } else {
+            false.into()
+        }
     }
     match ty {
         Type::Array(inner) => has_v8_global(&inner.elem),
-        Type::BareFn(_) => false,
+        Type::BareFn(_) => false.into(),
         Type::Group(inner) => has_v8_global(&inner.elem),
-        Type::ImplTrait(_) => false,
-        Type::Infer(_) => false,
-        Type::Macro(_) => false,
-        Type::Never(_) => false,
+        Type::ImplTrait(_) => false.into(),
+        Type::Infer(_) => false.into(),
+        Type::Macro(_) => false.into(),
+        Type::Never(_) => false.into(),
         Type::Paren(inner) => has_v8_global(&inner.elem),
         Type::Path(ty) => is_v8_global(ty),
-        Type::Ptr(_) => false,
+        Type::Ptr(_) => false.into(),
         Type::Reference(inner) => has_v8_global(&inner.elem),
         Type::Slice(inner) => has_v8_global(&inner.elem),
-        Type::TraitObject(_) => false,
-        Type::Tuple(inner) => inner.elems.iter().any(has_v8_global),
-        Type::Verbatim(_) => false,
-        _ => false,
+        Type::TraitObject(_) => false.into(),
+        Type::Tuple(inner) => inner.elems.iter().any(|t| has_v8_global(t).0).into(),
+        Type::Verbatim(_) => false.into(),
+        _ => false.into(),
     }
 }
 

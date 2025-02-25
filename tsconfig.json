@@ -6,7 +6,10 @@
     "moduleResolution": "bundler",
     "moduleDetection": "force",
     "allowJs": true,
+    "checkJs": true,
     "strict": true,
     "noEmit": true
-  }
+  },
+  "include": ["tests"],
+  "exclude": ["dist", "node_modules"]
 }

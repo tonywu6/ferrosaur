@@ -39,8 +39,9 @@ impl Callee {
             .non_fatal(errors);
         let name = property_key(&sig.ident, name);
         let err_ctx = format!("failed to call function {name:?}");
+        let return_ty = V8Conv::from_output(sig.output.clone()).non_fatal(errors);
         Self {
-            return_ty: sig.output.clone().into(),
+            return_ty,
             this,
             ctor: false,
             name,
@@ -57,7 +58,7 @@ impl Callee {
         sig: &Signature,
         errors: &mut Accumulator,
     ) -> Self {
-        let return_ty = V8Conv::from(sig.output.clone());
+        let return_ty = V8Conv::from_output(sig.output.clone()).non_fatal(errors);
 
         let name = match (class.into_inner().into_inner(), &sig.output) {
             (Some(class), _) => PropertyKey::String(class),
@@ -100,8 +101,9 @@ impl Callee {
         };
 
         let err_ctx = format!("failed to construct {name:?}");
+
         Self {
-            return_ty: sig.output.clone().into(),
+            return_ty,
             this: FunctionThis::Self_,
             ctor: true,
             name,
@@ -152,7 +154,7 @@ pub fn impl_function(call: Callable, sig: Signature) -> Result<Vec<TokenStream>>
         .map(|arg| {
             let FnArg::Typed(arg) = arg else { return arg };
 
-            let ty = V8Conv::from((*arg.ty).clone());
+            let ty = V8Conv::from_type((*arg.ty).clone()).non_fatal(&mut errors);
 
             match *arg.pat {
                 Pat::Ident(ref ident) => {

@@ -1,18 +1,23 @@
 use std::time::Duration;
 
 use anyhow::Result;
+use deno_bindgen3::js;
 use deno_core::v8;
 use serde_json::json;
 
-mod fixture;
+mod compile;
+mod util;
 
-use self::fixture::deno::deno;
+use crate::{
+    compile::{Global, Main},
+    util::deno,
+};
 
 #[tokio::test]
 async fn test_functions() -> Result<()> {
-    let (mut rt, main) = deno().await?;
+    let rt = &mut deno().await?;
 
-    let rt = &mut rt;
+    let main = Main::new(rt).await?;
 
     let rectangle = main.rectangle(3.0, 4.0, rt)?;
 
@@ -31,9 +36,9 @@ async fn test_functions() -> Result<()> {
 
 #[tokio::test]
 async fn test_this() -> Result<()> {
-    let (mut rt, main) = deno().await?;
+    let rt = &mut deno().await?;
 
-    let rt = &mut rt;
+    let main = Main::new(rt).await?;
 
     let checker = main.this_checker(rt)?;
 
@@ -57,9 +62,9 @@ async fn test_this() -> Result<()> {
 
 #[tokio::test]
 async fn test_promise() -> Result<()> {
-    let (mut rt, main) = deno().await?;
+    let rt = &mut deno().await?;
 
-    let rt = &mut rt;
+    let main = Main::new(rt).await?;
 
     let resolved = tokio::time::timeout(
         Duration::from_millis(60),
@@ -74,9 +79,38 @@ async fn test_promise() -> Result<()> {
 
 #[tokio::test]
 async fn test_variadic_fn() -> Result<()> {
-    deno().await?;
+    let rt = &mut deno().await?;
 
-    // TODO: capture stdout
+    let global = Global::new(rt);
+
+    global.console(rt)?.log(
+        &[
+            global.number(0.0, rt)?,
+            global.boolean(true, rt)?,
+            global.string("2", rt)?,
+            global.date(3.0, rt)?,
+        ],
+        rt,
+    )?;
+
+    let stdout = global.cargo_test_stdout(rt)?;
+
+    insta::assert_snapshot!(stdout);
 
     Ok(())
+}
+
+#[js(properties)]
+impl Global {
+    #[js(func(name(Boolean)))]
+    fn boolean(&self, v: serde<bool>) -> v8::Global<v8::Value> {}
+
+    #[js(func(name(Number)))]
+    fn number(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
+
+    #[js(func(name(String)))]
+    fn string(&self, v: serde<&str>) -> v8::Global<v8::Value> {}
+
+    #[js(new(class(Date)))]
+    fn date(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
 }
