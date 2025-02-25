@@ -10,7 +10,7 @@ use syn::{
 };
 use tap::Pipe;
 
-use super::{unwrap_v8_local, Caveat, PropertyKey};
+use super::{unwrap_v8_local, Caveat};
 
 #[derive(Debug, Clone)]
 pub enum V8Conv {
@@ -137,27 +137,25 @@ impl V8Conv {
         }
     }
 
-    pub fn to_getter<K>(&self, prop: &PropertyKey<K>) -> TokenStream
-    where
-        K: AsRef<str>,
-    {
+    pub fn to_getter(&self) -> TokenStream {
         let unwrap_data = unwrap_v8_local("data");
         let from_data = self.to_cast_from_v8("data", "scope");
         let return_ty = self.to_type();
         quote! {
             #[inline(always)]
-            fn getter<'a, T>(
+            fn getter<'a, K, T>(
                 scope: &mut v8::HandleScope<'a>,
                 this: T,
+                prop: K,
             ) -> Result<#return_ty>
             where
+                K: Into<v8::Local<'a, v8::Value>>,
                 T: TryInto<v8::Local<'a, v8::Object>>,
                 T::Error: ::std::error::Error + Send + Sync + 'static
             {
                 let scope = &mut v8::TryCatch::new(scope);
                 let this = TryInto::try_into(this)
                     .context("failed to cast `self` as a v8::Object")?;
-                let prop = #prop;
                 let prop = Into::into(prop);
                 let data = this.get(scope, prop);
                 let data = #unwrap_data;
@@ -166,20 +164,19 @@ impl V8Conv {
         }
     }
 
-    pub fn to_setter<K>(&self, prop: &PropertyKey<K>) -> TokenStream
-    where
-        K: AsRef<str>,
-    {
+    pub fn to_setter(&self) -> TokenStream {
         let into_data = self.to_cast_into_v8("data", "scope");
         let data_type = self.to_type();
         quote! {
             #[inline(always)]
-            fn setter<'a, T>(
+            fn setter<'a, K, T>(
                 scope: &mut v8::HandleScope<'a>,
                 this: T,
+                prop: K,
                 data: #data_type
             ) -> Result<()>
             where
+                K: Into<v8::Local<'a, v8::Value>>,
                 T: TryInto<v8::Local<'a, v8::Object>>,
                 T::Error: ::std::error::Error + Send + Sync + 'static
             {
@@ -187,7 +184,6 @@ impl V8Conv {
                     .context("failed to convert into v8 value")?;
                 let this = TryInto::try_into(this)
                     .context("failed to cast `self` as a v8::Object")?;
-                let prop = #prop;
                 let prop = Into::into(prop);
                 this.set(scope, prop, data);
                 Ok(())

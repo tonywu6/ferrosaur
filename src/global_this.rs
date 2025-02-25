@@ -56,6 +56,7 @@ pub fn global_this(_: GlobalThis, item: TokenStream) -> Result<TokenStream> {
 
         #[doc(hidden)]
         mod #inner_mod {
+            #[allow(unused)]
             use super::*;
             #use_prelude
             #use_deno

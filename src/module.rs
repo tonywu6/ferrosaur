@@ -45,8 +45,8 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
     let use_prelude = use_prelude();
 
     let uses = quote! {
+        #[allow(unused)]
         use super::*;
-
         #use_prelude
 
         #[allow(unused)]

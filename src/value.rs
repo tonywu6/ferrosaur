@@ -67,6 +67,7 @@ pub fn value(value: Value, item: TokenStream) -> Result<TokenStream> {
 
         #[doc(hidden)]
         mod #inner_mod {
+            #[allow(unused)]
             use super::*;
             #use_prelude
             #use_deno

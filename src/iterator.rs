@@ -10,7 +10,7 @@ use tap::Pipe;
 use crate::{
     util::{
         only_inherent_impl, use_deno, use_prelude, BindFunction, FatalErrors, FlagName,
-        FunctionLength, FunctionThis, NonFatalErrors, V8Conv,
+        FunctionLength, FunctionThis, NonFatalErrors, PropertyKey, V8Conv,
     },
     Iterator_,
 };
@@ -65,9 +65,11 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
     }
     .to_function();
 
-    let get_value = V8Conv::default().to_getter(&"value".into());
+    let value_key = PropertyKey::from("value");
+    let value_getter = V8Conv::default().to_getter();
 
-    let get_done = V8Conv::default().to_getter(&"done".into());
+    let done_key = PropertyKey::from("done");
+    let done_getter = V8Conv::default().to_getter();
 
     let into_item = item_type.to_cast_from_v8("value", "scope");
 
@@ -83,15 +85,17 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
                     .context("failed to call `next` on iterator")?
             };
             let done = {
-                #get_done
+                #done_getter
                 let this = v8::Local::new(scope, &next);
-                getter(scope, this)
+                let prop = #done_key;
+                getter(scope, this, prop)
                     .context("failed to get `done` from iterator result")?
             };
             let value = {
-                #get_value
+                #value_getter
                 let this = v8::Local::new(scope, &next);
-                getter(scope, this)
+                let prop = #value_key;
+                getter(scope, this, prop)
                     .context("failed to get `value` from iterator result")?
             };
             let done = v8::Local::new(scope, done);

@@ -32,19 +32,23 @@ impl<K: AsRef<str>> BindFunction<K> {
         let func = V8Conv::new_v8("Function");
 
         let get_func = {
-            let getter = func.to_getter(&self.name);
+            let getter = func.to_getter();
+            let prop = &self.name;
             quote! {{
                 #getter
-                getter(scope, this)
+                let prop = #prop;
+                getter(scope, this, prop)
                     .context("failed to get function object")?
             }}
         };
 
         let get_bind = {
-            let getter = func.to_getter(&"bind".into());
+            let getter = func.to_getter();
+            let prop = PropertyKey::from("bind");
             quote! {{
                 #getter
-                getter(scope, this)
+                let prop = #prop;
+                getter(scope, this, prop)
                     .context("failed to get Function.property.bind from function")?
             }}
         };

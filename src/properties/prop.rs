@@ -63,7 +63,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
     let name = property_key(&ident, name);
 
     let getter = {
-        let getter = return_ty.to_getter(&name);
+        let getter = return_ty.to_getter();
         let return_ty = return_ty.to_type();
         let err = format!("failed to get property {name:?}");
         quote! {
@@ -77,14 +77,15 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
                 let scope = &mut rt.handle_scope();
                 let this = ToV8::to_v8(self, scope)?;
                 let this = v8::Local::new(scope, this);
-                getter(scope, this).context(#err)
+                let prop = #name;
+                getter(scope, this, prop).context(#err)
             }
         }
     };
 
     let setter = if with_setter.is_present() {
         let ident = format_ident!("set_{}", ident);
-        let setter = return_ty.to_setter(&name);
+        let setter = return_ty.to_setter();
         let data_type = return_ty.to_type();
         let err = format!("failed to set property {name:?}");
         quote! {
@@ -99,7 +100,8 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
                 let scope = &mut _rt.handle_scope();
                 let this = ToV8::to_v8(self, scope)?;
                 let this = v8::Local::new(scope, this);
-                setter(scope, this, data).context(#err)?;
+                let prop = #name;
+                setter(scope, this, prop, data).context(#err)?;
                 Ok(self)
             }
         }
