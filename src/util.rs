@@ -22,7 +22,7 @@ pub use self::{
     property_key::{PropertyKey, WellKnown},
     string_like::StringLike,
     unary::Unary,
-    v8_conv::V8Conv,
+    v8_conv::{V8Conv, V8InnerType},
 };
 
 pub trait TokenStreamResult {

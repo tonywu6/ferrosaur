@@ -16,7 +16,7 @@ impl Global {
     pub fn cargo_test_stdout(&self) -> String {}
 }
 
-#[js(value(of(v8::Object)))]
+#[js(value)]
 struct Console;
 
 #[js(properties)]
@@ -61,11 +61,8 @@ impl Rectangle {
     pub fn value(&self) -> serde<serde_json::Value> {}
 
     #[js(func(name = "maybeSquare"))]
-    pub fn square(&self) -> OptionNull<Square> {}
+    pub fn square(&self) -> OptionNull<Rectangle> {}
 }
-
-#[js(value)]
-struct Square;
 
 #[js(value)]
 struct ThisChecker;

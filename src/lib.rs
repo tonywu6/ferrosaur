@@ -4,12 +4,7 @@ use darling::{
     Error, FromMeta, Result,
 };
 use proc_macro2::TokenStream;
-use quote::format_ident;
-use syn::{
-    parse_macro_input, punctuated::Punctuated, Lit, LitStr, Meta, Path, PathSegment, Token, Type,
-    TypePath,
-};
-use tap::Pipe;
+use syn::{parse_macro_input, Lit, LitStr, Meta};
 
 mod fast_string;
 mod global_this;
@@ -19,7 +14,9 @@ mod properties;
 mod util;
 mod value;
 
-use crate::util::{FatalErrors, FlagEnum, FlagLike, FlagName, TokenStreamResult, Unary};
+use crate::util::{
+    FatalErrors, FlagEnum, FlagLike, FlagName, TokenStreamResult, Unary, V8InnerType,
+};
 
 #[proc_macro_attribute]
 pub fn js(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -82,11 +79,8 @@ struct GlobalThis;
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Value {
     #[darling(default)]
-    of: InnerType,
+    expect: Unary<V8InnerType>,
 }
-
-#[derive(Debug, Clone)]
-struct InnerType(Box<Type>);
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Properties;
@@ -142,62 +136,6 @@ impl FromMeta for FastString {
 
     fn from_word() -> Result<Self> {
         Ok(Self::Fast)
-    }
-}
-
-impl FromMeta for InnerType {
-    fn from_list(items: &[NestedMeta]) -> Result<Self> {
-        let mut errors = Error::accumulator();
-        let item = match items.len() {
-            1 => &items[0],
-            0 => {
-                errors.finish()?;
-                return Err(Value::error("must specify a type"));
-            }
-            _ => {
-                errors.push(Value::error("must specify exactly 1 type"));
-                &items[0]
-            }
-        };
-        let (item, errors) = match item {
-            NestedMeta::Lit(..) => {
-                Value::error("unexpected literal, expected a type path").pipe(Err)
-            }
-            NestedMeta::Meta(item) => match item {
-                Meta::List(..) => {
-                    Value::error("unexpected nested list, expected a type path").pipe(Err)
-                }
-                Meta::NameValue(..) => {
-                    Value::error("unexpected assignment, expected a type path").pipe(Err)
-                }
-                Meta::Path(path) => TypePath {
-                    path: path.clone(),
-                    qself: None,
-                }
-                .pipe(Type::Path)
-                .pipe(Ok),
-            },
-        }
-        .map_err(|err| err.with_span(item))
-        .or_fatal(errors)?;
-        errors.finish()?;
-        Ok(Self(Box::new(item)))
-    }
-}
-
-impl Default for InnerType {
-    fn default() -> Self {
-        [format_ident!("v8"), format_ident!("Value")]
-            .map(PathSegment::from)
-            .pipe(Punctuated::<PathSegment, Token![::]>::from_iter)
-            .pipe(|segments| Path {
-                segments,
-                leading_colon: None,
-            })
-            .pipe(|path| TypePath { path, qself: None })
-            .pipe(Type::Path)
-            .pipe(Box::new)
-            .pipe(Self)
     }
 }
 

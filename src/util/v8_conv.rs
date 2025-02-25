@@ -1,9 +1,12 @@
-use darling::Error;
+use darling::{Error, FromMeta, Result};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{
-    punctuated::Punctuated, token::Paren, AngleBracketedGenericArguments, GenericArgument, Ident,
-    Path, PathArguments, PathSegment, ReturnType, Token, Type, TypePath, TypeTuple,
+    parse::{Parse, Parser},
+    punctuated::Punctuated,
+    token::Paren,
+    AngleBracketedGenericArguments, GenericArgument, Ident, Meta, Path, PathArguments, PathSegment,
+    ReturnType, Token, Type, TypePath, TypeTuple,
 };
 use tap::Pipe;
 
@@ -50,6 +53,35 @@ impl V8Conv {
 
     pub fn to_type(&self) -> Type {
         self.as_type().clone()
+    }
+
+    pub fn to_inner_type(&self) -> Option<Type> {
+        let Self::Value {
+            ty:
+                Type::Path(TypePath {
+                    qself: None,
+                    path:
+                        Path {
+                            leading_colon: None,
+                            segments,
+                        },
+                }),
+        } = self
+        else {
+            return None;
+        };
+        let PathArguments::AngleBracketed(args) = &segments.get(1)?.arguments else {
+            return None;
+        };
+        if args.args.len() == 1 {
+            if let GenericArgument::Type(ty) = &args.args[0] {
+                Some(ty.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub fn to_cast_into_v8<K>(&self, name: K, scope: &'static str) -> TokenStream
@@ -229,9 +261,7 @@ fn has_v8_global(ty: &Type) -> Caveat<bool> {
             if segments[1].ident == "Global" && !segments[1].arguments.is_empty() {
                 true.into()
             } else {
-                let err = "to return a v8 value directly, wrap this in `v8::Global<...>`"
-                    .pipe(Error::custom)
-                    .with_span(ty);
+                let err = Error::custom("expected `v8::Global<v8::...>`").with_span(ty);
                 (true, err).into()
             }
         } else {
@@ -355,5 +385,22 @@ fn visit_type_hint<T: TypeHint>(hint: &mut T, ty: &mut Type) {
         } else {
             None
         }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct V8InnerType(pub V8Conv);
+
+impl FromMeta for V8InnerType {
+    fn from_meta(item: &Meta) -> Result<Self> {
+        let Meta::Path(path) = item else {
+            return Err(Error::custom("expected a type path"));
+        };
+        quote! { v8::Global<#path> }
+            .pipe(|tokens| Type::parse.parse2(tokens))?
+            .pipe(V8Conv::from_type)
+            .into_result()?
+            .pipe(Self)
+            .pipe(Ok)
     }
 }

@@ -12,9 +12,9 @@ use crate::{
         v8_conv_impl::{
             impl_as_ref_inner, impl_from_inner, impl_from_v8, impl_into_inner, impl_to_v8,
         },
-        FatalErrors, NoGenerics,
+        FatalErrors, FlagName, NoGenerics, Unary, V8InnerType,
     },
-    InnerType, Value,
+    Value,
 };
 
 #[derive(Debug, Clone, FromDeriveInput)]
@@ -37,19 +37,22 @@ pub fn value(value: Value, item: TokenStream) -> Result<TokenStream> {
         ident, vis, attrs, ..
     } = item;
 
-    let Value { of: inner_ty } = value;
+    let Value {
+        expect: Unary(V8InnerType(expect)),
+    } = value;
 
-    let outer_ty = match inner_ty {
-        InnerType(ref ty) => quote! {
-            v8::Global<#ty>
-        },
-    };
+    let outer_ty = expect.to_type().into_token_stream();
+
+    let (inner_ty, errors) = expect
+        .to_inner_type()
+        .ok_or_else(|| Value::error("expected `v8::Global<v8::...>`").with_span(&outer_ty))
+        .or_fatal(errors)?;
 
     let impl_from = impl_from_inner(&outer_ty, &ident);
     let impl_into = impl_into_inner(&outer_ty, &ident);
     let impl_as_ref = impl_as_ref_inner(&outer_ty, &ident);
-    let impl_from_v8 = impl_from_v8(&inner_ty.0.to_token_stream(), &ident);
-    let impl_to_v8 = impl_to_v8(&inner_ty.0.to_token_stream(), &ident);
+    let impl_from_v8 = impl_from_v8(&inner_ty.to_token_stream(), &ident);
+    let impl_to_v8 = impl_to_v8(&inner_ty.to_token_stream(), &ident);
 
     let inner_mod = inner_mod_name("value", &ident);
 

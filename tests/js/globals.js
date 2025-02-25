@@ -30,22 +30,17 @@ import "ext:deno_webidl/00_webidl.js";
 import { Console, setNoColorFns } from "ext:deno_console/01_console.js";
 import { setTimeout } from "ext:deno_web/02_timers.js";
 
-const { print } = Deno.core;
-
 const { console, __cargo_test_stdout__ } = (() => {
   let stdout = "";
 
-  const console = new Console((msg, level) => {
-    stdout += msg;
-    print(msg, level > 1);
-  });
-
-  const __cargo_test_stdout__ = () => stdout;
+  const console = new Console((msg) => (stdout += msg));
 
   setNoColorFns(
     () => true,
     () => true,
   );
+
+  const __cargo_test_stdout__ = () => stdout;
 
   return { console, __cargo_test_stdout__ };
 })();
