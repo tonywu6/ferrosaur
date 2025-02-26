@@ -9,7 +9,7 @@ use syn::{
 use crate::{
     util::{
         inner_mod_name, use_prelude,
-        v8_conv_impl::{impl_as_ref_inner, impl_from_inner, impl_to_v8},
+        v8_conv_impl::{impl_as_ref_inner, impl_from_inner, impl_global_cast, impl_to_v8},
         FatalErrors, NoGenerics, Unary,
     },
     FastString, ImportMetaUrl, Module,
@@ -147,7 +147,11 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
 
     let impl_as_ref = impl_as_ref_inner(&item_ty, &ident);
     let impl_from = impl_from_inner(&item_ty, &ident);
-    let impl_to_v8 = impl_to_v8(&quote! { v8::Object }, &ident);
+
+    let inner_ty = quote! { v8::Object };
+
+    let impl_to_v8 = impl_to_v8(&inner_ty, &ident);
+    let impl_global_cast = impl_global_cast(&inner_ty);
 
     let inner_mod = inner_mod_name("module", &ident);
 
@@ -196,6 +200,8 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
                         rt.get_module_namespace(id)?
                     }))
                 }
+
+                #impl_global_cast
             }
 
             #impl_as_ref

@@ -79,3 +79,24 @@ pub fn impl_to_v8<K: ToTokens>(v8_inner: &TokenStream, ident: K) -> TokenStream 
         }
     }
 }
+
+pub fn impl_global_cast(v8_inner: &TokenStream) -> TokenStream {
+    quote! {
+        #[inline(always)]
+        pub fn try_cast_global<'a, T>(
+            &self,
+            rt: &'a mut JsRuntime,
+        ) -> ::core::result::Result<
+             v8::Global<T>,
+            <v8::Local<'a, #v8_inner> as TryInto<v8::Local<'a, T>>>::Error
+        >
+        where
+             v8::Local<'a, #v8_inner>:   TryInto<v8::Local<'a, T>>,
+        {
+            let scope = &mut rt.handle_scope();
+            let this = v8::Local::new(scope, &self.0);
+            let this = this.try_cast()?;
+            Ok(v8::Global::new(scope, this))
+        }
+    }
+}

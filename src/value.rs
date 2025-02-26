@@ -10,7 +10,8 @@ use crate::{
     util::{
         inner_mod_name, use_deno, use_prelude,
         v8_conv_impl::{
-            impl_as_ref_inner, impl_from_inner, impl_from_v8, impl_into_inner, impl_to_v8,
+            impl_as_ref_inner, impl_from_inner, impl_from_v8, impl_global_cast, impl_into_inner,
+            impl_to_v8,
         },
         FatalErrors, NoGenerics, Unary, V8InnerType,
     },
@@ -48,11 +49,15 @@ pub fn value(value: Value, item: TokenStream) -> Result<TokenStream> {
         .ok_or_else(|| Error::custom("expected `v8::Global<v8::...>`").with_span(&outer_ty))
         .or_fatal(errors)?;
 
+    let inner_ty = inner_ty.to_token_stream();
+
     let impl_from = impl_from_inner(&outer_ty, &ident);
     let impl_into = impl_into_inner(&outer_ty, &ident);
     let impl_as_ref = impl_as_ref_inner(&outer_ty, &ident);
-    let impl_from_v8 = impl_from_v8(&inner_ty.to_token_stream(), &ident);
-    let impl_to_v8 = impl_to_v8(&inner_ty.to_token_stream(), &ident);
+    let impl_from_v8 = impl_from_v8(&inner_ty, &ident);
+    let impl_to_v8 = impl_to_v8(&inner_ty, &ident);
+
+    let impl_global_cast = impl_global_cast(&inner_ty);
 
     let inner_mod = inner_mod_name("value", &ident);
 
@@ -80,6 +85,11 @@ pub fn value(value: Value, item: TokenStream) -> Result<TokenStream> {
             #impl_as_ref
             #impl_from_v8
             #impl_to_v8
+
+            #[automatically_derived]
+            impl #ident {
+                #impl_global_cast
+            }
         }
     })
 }

@@ -173,7 +173,7 @@ impl V8Conv {
             where
                 K: Into<v8::Local<'a, v8::Value>>,
                 T: TryInto<v8::Local<'a, v8::Object>>,
-                T::Error: ::std::error::Error + Send + Sync + 'static
+                T::Error: ::core::error::Error + Send + Sync + 'static
             {
                 let scope = &mut v8::TryCatch::new(scope);
                 let this = TryInto::try_into(this)
@@ -200,7 +200,7 @@ impl V8Conv {
             where
                 K: Into<v8::Local<'a, v8::Value>>,
                 T: TryInto<v8::Local<'a, v8::Object>>,
-                T::Error: ::std::error::Error + Send + Sync + 'static
+                T::Error: ::core::error::Error + Send + Sync + 'static
             {
                 let data = #into_data
                     .context("failed to convert into v8 value")?;

@@ -143,14 +143,7 @@ async fn test_indexing_set() -> Result<()> {
 
     let global = Global::new(rt);
 
-    let i18n = {
-        let i18n = I18n::new(rt).await?;
-        let scope = &mut rt.handle_scope();
-        let i18n = v8::Local::new(scope, i18n.as_ref());
-        v8::Global::new(scope, i18n.cast::<v8::Value>())
-    };
-
-    global.declare("foo", i18n, rt)?;
+    global.declare("foo", I18n::new(rt).await?.try_cast_global(rt)?, rt)?;
 
     {
         let typeof_ = rt.execute_script("", "typeof foo")?;

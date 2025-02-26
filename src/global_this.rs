@@ -9,7 +9,7 @@ use syn::{
 use crate::{
     util::{
         inner_mod_name, use_deno, use_prelude,
-        v8_conv_impl::{impl_as_ref_inner, impl_from_inner, impl_to_v8},
+        v8_conv_impl::{impl_as_ref_inner, impl_from_inner, impl_global_cast, impl_to_v8},
         FatalErrors, NoGenerics,
     },
     GlobalThis,
@@ -48,6 +48,8 @@ pub fn global_this(_: GlobalThis, item: TokenStream) -> Result<TokenStream> {
     let impl_as_ref = impl_as_ref_inner(&v8_outer, &ident);
     let impl_to_v8 = impl_to_v8(&v8_inner, &ident);
 
+    let impl_global_cast = impl_global_cast(&v8_inner);
+
     errors.finish()?;
 
     Ok(quote! {
@@ -74,6 +76,8 @@ pub fn global_this(_: GlobalThis, item: TokenStream) -> Result<TokenStream> {
                     let global = v8::Global::new(scope, global);
                     Self(global)
                 }
+
+                #impl_global_cast
             }
 
             #impl_from_inner
