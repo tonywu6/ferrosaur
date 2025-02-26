@@ -12,13 +12,14 @@ use tap::Pipe;
 use crate::{
     util::{
         only_inherent_impl, use_deno, use_prelude, Caveat, FatalErrors, FlagEnum, FlagLike,
-        FlagName, FunctionThis, MergeErrors, NonFatalErrors, PropertyKey, StringLike, Unary,
+        FlagName, FunctionThis, MergeErrors, PropertyKey, RecoverableErrors, StringLike, Unary,
         WellKnown,
     },
     Properties,
 };
 
 mod func;
+mod get;
 mod prop;
 
 #[derive(Debug, Clone, FromMeta)]
@@ -26,6 +27,7 @@ enum JsProperty {
     Prop(FlagLike<Property>),
     Func(FlagLike<Function>),
     New(FlagLike<Constructor>),
+    Get(FlagLike<Getter>),
 }
 
 type PropKeyString = StringLike<String>;
@@ -48,6 +50,9 @@ struct Function {
     #[darling(default)]
     this: FunctionThis,
 }
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Getter;
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Constructor {
@@ -142,6 +147,7 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
         JsProperty::Prop(FlagLike(prop)) => prop::impl_property(prop, sig),
         JsProperty::Func(FlagLike(func)) => func::impl_function(func.into(), sig),
         JsProperty::New(FlagLike(ctor)) => func::impl_function(ctor.into(), sig),
+        JsProperty::Get(FlagLike(getter)) => get::impl_getter(getter, sig),
     }
     .or_fatal(errors)?;
 
@@ -164,7 +170,7 @@ impl MaybeAsync {
     fn only<F: FlagName>(self, sig: &Signature) -> Caveat<Self> {
         let mut errors = Accumulator::default();
 
-        let color = Self::some::<F>(sig).non_fatal(&mut errors);
+        let color = Self::some::<F>(sig).and_recover(&mut errors);
 
         match self {
             MaybeAsync::Sync => {
@@ -247,7 +253,7 @@ fn name_or_symbol<F: FlagName>(
     span: Span,
     name: Option<PropKeyString>,
     symbol: Option<PropKeySymbol>,
-) -> Caveat<Option<PropertyKey<String>>> {
+) -> Caveat<Option<PropertyKey>> {
     match (name, symbol) {
         (None, None) => None.into(),
         (Some(StringLike(name)), None) => Some(PropertyKey::String(name)).into(),
@@ -260,7 +266,7 @@ fn name_or_symbol<F: FlagName>(
     }
 }
 
-fn property_key(src: &Ident, alt: Option<PropertyKey<String>>) -> PropertyKey<String> {
+fn property_key(src: &Ident, alt: Option<PropertyKey>) -> PropertyKey {
     match alt {
         Some(key) => key,
         None => src
@@ -304,5 +310,13 @@ impl FlagName for Constructor {
 
     fn unit() -> Result<Self> {
         Ok(Default::default())
+    }
+}
+
+impl FlagName for Getter {
+    const PREFIX: &'static str = "get";
+
+    fn unit() -> Result<Self> {
+        Ok(Self)
     }
 }

@@ -10,7 +10,7 @@ use tap::Pipe;
 use crate::{
     util::{
         only_inherent_impl, use_deno, use_prelude, BindFunction, FatalErrors, FlagName,
-        FunctionLength, FunctionThis, NonFatalErrors, PropertyKey, V8Conv,
+        FunctionLength, FunctionThis, PropertyKey, RecoverableErrors, V8Conv,
     },
     Iterator_,
 };
@@ -58,12 +58,11 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
     let return_ty = item_type.to_type();
 
     let fn_value = BindFunction {
-        name: "next".into(),
+        source: "next".into(),
         this: FunctionThis::Self_,
         ctor: false,
         length: FunctionLength::Fixed(0),
-    }
-    .to_function();
+    };
 
     let value_key = PropertyKey::from("value");
     let value_getter = V8Conv::default().to_getter();
@@ -227,7 +226,7 @@ fn item_type(item: ImplItem) -> Result<(V8Conv, Ident)> {
         },
     );
 
-    let ty = V8Conv::from_type(ty).non_fatal(&mut errors);
+    let ty = V8Conv::from_type(ty).and_recover(&mut errors);
 
     errors.finish_with((ty, ident))
 }

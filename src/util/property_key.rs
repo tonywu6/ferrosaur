@@ -2,9 +2,9 @@ use darling::FromMeta;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-#[derive(Clone, Copy)]
-pub enum PropertyKey<K> {
-    String(K),
+#[derive(Clone)]
+pub enum PropertyKey {
+    String(String),
     Symbol(WellKnown),
 }
 
@@ -24,16 +24,13 @@ pub enum WellKnown {
     Unscopables,
 }
 
-impl<K: AsRef<str>> From<K> for PropertyKey<K> {
+impl<K: AsRef<str>> From<K> for PropertyKey {
     fn from(value: K) -> Self {
-        Self::String(value)
+        Self::String(value.as_ref().into())
     }
 }
 
-impl<T> std::fmt::Debug for PropertyKey<T>
-where
-    T: std::fmt::Debug,
-{
+impl std::fmt::Debug for PropertyKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::String(s) => s.fmt(f),
@@ -60,12 +57,10 @@ impl std::fmt::Debug for WellKnown {
     }
 }
 
-impl<K: AsRef<str>> ToTokens for PropertyKey<K> {
+impl ToTokens for PropertyKey {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        // TODO: cast v8 Value
         let rendered = match self {
             Self::String(key) => {
-                let key = key.as_ref();
                 if key.is_ascii() {
                     quote! {
                         ascii_str!(#key).v8_string(scope)?

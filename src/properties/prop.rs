@@ -1,19 +1,19 @@
-use darling::{Error, Result};
+use darling::{error::Accumulator, Result};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{spanned::Spanned, Generics, ReturnType, Signature};
 use tap::Pipe;
 
-use crate::util::{FlagName, NewtypeMeta, NonFatalErrors, V8Conv};
+use crate::util::{FlagName, NewtypeMeta, RecoverableErrors, V8Conv};
 
 use super::{name_or_symbol, property_key, self_arg, MaybeAsync, Property};
 
 pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>> {
-    let mut errors = Error::accumulator();
+    let mut errors = Accumulator::default();
 
     MaybeAsync::Sync
         .only::<Property>(&sig)
-        .non_fatal(&mut errors);
+        .and_recover(&mut errors);
 
     let span = sig.span();
 
@@ -55,10 +55,10 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         Ok(())
     });
 
-    let return_ty = V8Conv::from_output(output).non_fatal(&mut errors);
+    let return_ty = V8Conv::from_output(output).and_recover(&mut errors);
 
     let name = name_or_symbol::<Property>(ident.span(), name.into_inner(), symbol.into_inner())
-        .non_fatal(&mut errors);
+        .and_recover(&mut errors);
 
     let name = property_key(&ident, name);
 

@@ -9,6 +9,7 @@ use syn::{
 use tap::{Conv, Pipe, Tap};
 
 mod bind_function;
+mod call_function;
 mod flag_like;
 mod property_key;
 mod string_like;
@@ -18,6 +19,7 @@ pub mod v8_conv_impl;
 
 pub use self::{
     bind_function::{BindFunction, FunctionLength, FunctionThis},
+    call_function::{CallFunction, FunctionIntent},
     flag_like::{FlagEnum, FlagLike, FlagName},
     property_key::{PropertyKey, WellKnown},
     string_like::StringLike,
@@ -57,6 +59,20 @@ impl<T> FatalErrors<T> for syn::Result<T> {
     }
 }
 
+pub trait RecoverableErrors<T> {
+    fn and_recover(self, errors: &mut Accumulator) -> T;
+}
+
+impl<T> RecoverableErrors<T> for Caveat<T> {
+    fn and_recover(self, errors: &mut Accumulator) -> T {
+        let Caveat(ok, err) = self;
+        if let Some(err) = err {
+            errors.push(err);
+        }
+        ok
+    }
+}
+
 #[derive(Debug)]
 pub struct Caveat<T>(pub T, pub Option<Error>);
 
@@ -84,21 +100,6 @@ impl<T> From<(T, Option<Error>)> for Caveat<T> {
 impl<T> From<T> for Caveat<T> {
     fn from(value: T) -> Self {
         Self(value, None)
-    }
-}
-
-pub trait NonFatalErrors<T> {
-    #[allow(unused)]
-    fn non_fatal(self, errors: &mut Accumulator) -> T;
-}
-
-impl<T> NonFatalErrors<T> for Caveat<T> {
-    fn non_fatal(self, errors: &mut Accumulator) -> T {
-        let Caveat(ok, err) = self;
-        if let Some(err) = err {
-            errors.push(err);
-        }
-        ok
     }
 }
 

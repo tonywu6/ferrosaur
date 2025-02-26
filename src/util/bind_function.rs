@@ -1,15 +1,21 @@
 use darling::FromMeta;
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 
 use super::{unwrap_v8_local, PropertyKey, V8Conv};
 
 #[derive(Debug, Clone)]
-pub struct BindFunction<K> {
-    pub name: PropertyKey<K>,
+pub struct BindFunction {
+    pub source: FunctionSource,
     pub this: FunctionThis,
     pub ctor: bool,
     pub length: FunctionLength,
+}
+
+#[derive(Debug, Clone)]
+pub enum FunctionSource {
+    Prop(PropertyKey),
+    This,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -20,26 +26,35 @@ pub enum FunctionLength {
 
 #[derive(Debug, Default, Clone, Copy, FromMeta)]
 pub enum FunctionThis {
-    #[darling(rename = "self")]
     #[default]
+    #[darling(rename = "self")]
     Self_,
     #[darling(rename = "undefined")]
     Undefined,
+    #[darling(rename = "unbound")]
+    Unbound,
 }
 
-impl<K: AsRef<str>> BindFunction<K> {
-    pub fn to_function(&self) -> TokenStream {
+impl ToTokens for BindFunction {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
         let func = V8Conv::new_v8("Function");
 
-        let get_func = {
-            let getter = func.to_getter();
-            let prop = &self.name;
-            quote! {{
-                #getter
-                let prop = #prop;
-                getter(scope, this, prop)
-                    .context("failed to get function object")?
-            }}
+        let get_func = match &self.source {
+            FunctionSource::Prop(prop) => {
+                let getter = func.to_getter();
+                quote! {{
+                    #getter
+                    let prop = #prop;
+                    getter(scope, object, prop)
+                        .context("failed to get function object")?
+                }}
+            }
+            FunctionSource::This => {
+                quote! {{
+                    object.try_cast::<v8::Function>()
+                        .context("failed to cast self as function")?
+                }}
+            }
         };
 
         let get_bind = {
@@ -48,7 +63,7 @@ impl<K: AsRef<str>> BindFunction<K> {
             quote! {{
                 #getter
                 let prop = #prop;
-                getter(scope, this, prop)
+                getter(scope, object, prop)
                     .context("failed to get Function.property.bind from function")?
             }}
         };
@@ -63,39 +78,53 @@ impl<K: AsRef<str>> BindFunction<K> {
         };
 
         let this = match self.this {
-            FunctionThis::Self_ => quote! {{
-                let this = TryInto::try_into(this)
+            FunctionThis::Self_ => Some(quote! {{
+                let object = TryInto::try_into(object)
                     .context("failed to cast `self` as a v8::Object")?;
-                this.cast::<v8::Value>()
-            }},
-            FunctionThis::Undefined => quote! {{
+                object.cast::<v8::Value>()
+            }}),
+            FunctionThis::Undefined => Some(quote! {{
                 let this = v8::undefined(scope);
                 this.cast::<v8::Value>()
-            }},
+            }}),
+            FunctionThis::Unbound => None,
         };
 
-        let args = match self.length {
-            FunctionLength::Fixed(len) => {
-                let locals = (0..len).map(|idx| {
-                    let offset = idx + 1;
-                    quote! { array[#offset] = v8::Local::new(scope, &args[#idx]); }
-                });
-                let total_len = len + 1;
-                quote! {{
-                    let undefined = v8::undefined(scope).cast::<v8::Value>();
-                    let mut array = [undefined; #total_len];
+        let args = if let Some(this) = this {
+            match self.length {
+                FunctionLength::Fixed(len) => {
+                    let locals = (0..len).map(|idx| {
+                        let offset = idx + 1;
+                        quote! {
+                            array[#offset] = v8::Local::new(scope, &args[#idx]);
+                        }
+                    });
+                    let total_len = len + 1;
+                    quote! {{
+                        let undefined = v8::undefined(scope).cast::<v8::Value>();
+                        let mut array = [undefined; #total_len];
+                        let this = #this;
+                        array[0] = this;
+                        #(#locals)*
+                        array
+                    }}
+                }
+                FunctionLength::Variadic => quote! {{
                     let this = #this;
-                    array[0] = this;
-                    #(#locals)*
-                    array
-                }}
+                    ::std::iter::once(this)
+                        .chain(args.iter().map(|arg| v8::Local::new(scope, arg)))
+                        .collect::<Vec<_>>()
+                }},
             }
-            FunctionLength::Variadic => quote! {{
-                let this = #this;
-                ::std::iter::once(this)
-                    .chain(args.iter().map(|arg| v8::Local::new(scope, arg)))
-                    .collect::<Vec<_>>()
-            }},
+        } else {
+            match self.length {
+                FunctionLength::Fixed(_) => quote! {{
+                    args.map(|arg| v8::Local::new(scope, arg))
+                }},
+                FunctionLength::Variadic => quote! {{
+                    args.into_iter().map(|arg| v8::Local::new(scope, arg)).collect()
+                }},
+            }
         };
 
         let unwrap_callable = unwrap_v8_local("callable");
@@ -113,11 +142,11 @@ impl<K: AsRef<str>> BindFunction<K> {
 
         let unwrap_retval = unwrap_v8_local("retval");
 
-        quote! {
+        let result = quote! {
             #[inline(always)]
             fn call<'a, T>(
                 scope: &mut v8::HandleScope<'a>,
-                this: T,
+                object: T,
                 #[allow(unused)]
                 args: #args_ty,
             ) -> Result<v8::Global<v8::Value>>
@@ -127,7 +156,7 @@ impl<K: AsRef<str>> BindFunction<K> {
             {
                 let func = #get_func;
                 let bind = {
-                    let this = v8::Local::new(scope, &func);
+                    let object = v8::Local::new(scope, &func);
                     #get_bind
                 };
                 let bind = v8::Local::new(scope, bind);
@@ -142,6 +171,17 @@ impl<K: AsRef<str>> BindFunction<K> {
                 let retval = #unwrap_retval.try_cast()?;
                 Ok(v8::Global::new(scope, retval))
             }
-        }
+        };
+
+        tokens.extend(result);
+    }
+}
+
+impl<T> From<T> for FunctionSource
+where
+    T: Into<PropertyKey>,
+{
+    fn from(value: T) -> Self {
+        Self::Prop(value.into())
     }
 }

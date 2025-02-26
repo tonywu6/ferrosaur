@@ -1,6 +1,6 @@
 use darling::{Error, FromMeta, Result};
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse::{Parse, Parser},
     punctuated::Punctuated,
@@ -234,6 +234,12 @@ impl V8Conv {
 impl Default for V8Conv {
     fn default() -> Self {
         Self::new_v8("Value")
+    }
+}
+
+impl ToTokens for V8Conv {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.as_type().to_tokens(tokens);
     }
 }
 

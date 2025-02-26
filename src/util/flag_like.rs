@@ -26,6 +26,7 @@ pub trait FlagName: Sized {
         }
     }
 
+    // TODO: remove
     fn error<T: std::fmt::Display>(msg: T) -> Error {
         Error::custom(format!("({}) {msg}", Self::PREFIX))
     }
@@ -130,7 +131,7 @@ where
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("expected exactly one of {}", choices)
-                    .pipe(T::error)
+                    .pipe(Error::custom)
                     .with_span(&span)
                     .pipe(Err)
             }
