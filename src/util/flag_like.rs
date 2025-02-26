@@ -25,11 +25,6 @@ pub trait FlagName: Sized {
                 .pipe(Err)
         }
     }
-
-    // TODO: remove
-    fn error<T: std::fmt::Display>(msg: T) -> Error {
-        Error::custom(format!("({}) {msg}", Self::PREFIX))
-    }
 }
 
 impl<T> FromMeta for FlagLike<T>

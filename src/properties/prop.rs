@@ -1,19 +1,17 @@
-use darling::{error::Accumulator, Result};
+use darling::{Error, Result};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{spanned::Spanned, Generics, ReturnType, Signature};
 use tap::Pipe;
 
-use crate::util::{FlagName, NewtypeMeta, RecoverableErrors, V8Conv};
+use crate::util::{NewtypeMeta, RecoverableErrors, V8Conv};
 
 use super::{name_or_symbol, property_key, self_arg, MaybeAsync, Property};
 
 pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>> {
-    let mut errors = Accumulator::default();
+    let mut errors = Error::accumulator();
 
-    MaybeAsync::Sync
-        .only::<Property>(&sig)
-        .and_recover(&mut errors);
+    MaybeAsync::Sync.only(&sig).and_recover(&mut errors);
 
     let span = sig.span();
 
@@ -31,10 +29,10 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         ..
     } = generics;
 
-    let self_arg = errors.handle(self_arg::<Property>(&inputs, span));
+    let self_arg = errors.handle(self_arg(&inputs, span));
 
     errors.handle(if inputs.len() > 1 {
-        Property::error("fn must not have extra arguments")
+        Error::custom("fn must not have extra arguments")
             .with_span(&inputs.get(1))
             .pipe(Err)
     } else {
@@ -48,7 +46,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
     } = prop;
 
     errors.handle(if matches!(output, ReturnType::Default) {
-        Property::error("fn must have an explicit return type")
+        Error::custom("fn must have an explicit return type")
             .with_span(&ident)
             .pipe(Err)
     } else {
@@ -57,7 +55,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
 
     let return_ty = V8Conv::from_output(output).and_recover(&mut errors);
 
-    let name = name_or_symbol::<Property>(ident.span(), name.into_inner(), symbol.into_inner())
+    let name = name_or_symbol(ident.span(), name.into_inner(), symbol.into_inner())
         .and_recover(&mut errors);
 
     let name = property_key(&ident, name);

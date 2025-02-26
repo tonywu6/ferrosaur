@@ -1,4 +1,4 @@
-use darling::{error::Accumulator, util::Flag, FromMeta, Result};
+use darling::{util::Flag, Error, FromMeta, Result};
 use heck::ToLowerCamelCase;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
@@ -11,9 +11,9 @@ use tap::Pipe;
 
 use crate::{
     util::{
-        only_inherent_impl, use_deno, use_prelude, Caveat, FatalErrors, FlagEnum, FlagLike,
-        FlagName, FunctionThis, MergeErrors, PropertyKey, RecoverableErrors, StringLike, Unary,
-        WellKnown,
+        only_fn_item, only_inherent_impl, use_deno, use_prelude, Caveat, ErrorLocation,
+        FatalErrors, FlagEnum, FlagLike, FlagName, FunctionThis, MergeErrors, PropertyKey,
+        RecoverableErrors, StringLike, Unary, WellKnown,
     },
     Properties,
 };
@@ -60,7 +60,7 @@ struct Constructor {
 }
 
 pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
-    let errors = Accumulator::default();
+    let errors = Error::accumulator();
 
     let (item, mut errors) = ItemImpl::parse.parse2(item).or_fatal(errors)?;
 
@@ -107,14 +107,9 @@ pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
 }
 
 fn impl_item(item: ImplItem) -> Result<TokenStream> {
-    let ImplItem::Fn(func) = item else {
-        return "only fn items are supported\nmove this item to another impl block"
-            .pipe(Properties::error)
-            .with_span(&item)
-            .pipe(Err);
-    };
+    let func = only_fn_item(item)?;
 
-    let mut errors = Accumulator::default();
+    let mut errors = Error::accumulator();
 
     let ImplItemFn {
         attrs,
@@ -125,7 +120,7 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
     } = func;
 
     errors.handle(if !block.stmts.is_empty() {
-        Properties::error("macro ignores fn body\nchange this to {}")
+        Error::custom("macro ignores fn body\nchange this to {}")
             .with_span(&block)
             .pipe(Err)
     } else {
@@ -133,7 +128,7 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
     });
 
     errors.handle(if defaultness.is_some() {
-        Properties::error("fn cannot be `default` here")
+        Error::custom("fn cannot be `default` here")
             .with_span(&defaultness)
             .pipe(Err)
     } else {
@@ -144,10 +139,18 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
         FlagLike::<JsProperty>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
 
     let (impl_, errors) = match prop {
-        JsProperty::Prop(FlagLike(prop)) => prop::impl_property(prop, sig),
-        JsProperty::Func(FlagLike(func)) => func::impl_function(func.into(), sig),
-        JsProperty::New(FlagLike(ctor)) => func::impl_function(ctor.into(), sig),
-        JsProperty::Get(FlagLike(getter)) => get::impl_getter(getter, sig),
+        JsProperty::Prop(FlagLike(prop)) => {
+            prop::impl_property(prop, sig).error_at::<JsProperty, Property>()
+        }
+        JsProperty::Func(FlagLike(func)) => {
+            func::impl_function(func.into(), sig).error_at::<JsProperty, Function>()
+        }
+        JsProperty::New(FlagLike(ctor)) => {
+            func::impl_function(ctor.into(), sig).error_at::<JsProperty, Constructor>()
+        }
+        JsProperty::Get(FlagLike(getter)) => {
+            get::impl_getter(getter, sig).error_at::<JsProperty, Getter>()
+        }
     }
     .or_fatal(errors)?;
 
@@ -167,22 +170,22 @@ enum MaybeAsync {
 }
 
 impl MaybeAsync {
-    fn only<F: FlagName>(self, sig: &Signature) -> Caveat<Self> {
-        let mut errors = Accumulator::default();
+    fn only(self, sig: &Signature) -> Caveat<Self> {
+        let mut errors = Error::accumulator();
 
-        let color = Self::some::<F>(sig).and_recover(&mut errors);
+        let color = Self::some(sig).and_recover(&mut errors);
 
         match self {
             MaybeAsync::Sync => {
                 if let MaybeAsync::Async(span) = color {
-                    F::error("fn cannot be `async` here")
+                    Error::custom("fn cannot be `async` here")
                         .with_span(&span)
                         .pipe(|e| errors.push(e));
                 }
             }
             MaybeAsync::Async(_) => {
                 if matches!(color, MaybeAsync::Sync) {
-                    F::error("fn is required to be `async` here")
+                    Error::custom("fn is required to be `async` here")
                         .with_span(&sig.fn_token)
                         .pipe(|e| errors.push(e));
                 }
@@ -192,21 +195,21 @@ impl MaybeAsync {
         (color, errors.into_one()).into()
     }
 
-    fn some<F: FlagName>(sig: &Signature) -> Caveat<Self> {
+    fn some(sig: &Signature) -> Caveat<Self> {
         let color = match &sig.asyncness {
             None => MaybeAsync::Sync,
             Some(token) => MaybeAsync::Async(*token),
         };
-        (color, Self::supported::<F>(sig).into_one()).into()
+        (color, Self::supported(sig)).into()
     }
 
-    fn supported<F: FlagName>(sig: &Signature) -> Accumulator {
-        let mut errors = Accumulator::default();
+    fn supported(sig: &Signature) -> Option<Error> {
+        let mut errors = Error::accumulator();
 
         macro_rules! deny {
             ($attr:ident, $msg:literal) => {
                 if sig.$attr.is_some() {
-                    F::error($msg)
+                    Error::custom($msg)
                         .with_span(&sig.$attr)
                         .pipe(|e| errors.push(e));
                 }
@@ -218,7 +221,7 @@ impl MaybeAsync {
         deny!(abi, "fn cannot be `extern` here");
         deny!(variadic, "fn cannot be variadic here");
 
-        errors
+        errors.into_one()
     }
 }
 
@@ -231,25 +234,25 @@ impl ToTokens for MaybeAsync {
     }
 }
 
-fn self_arg<F: FlagName>(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receiver> {
+fn self_arg(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receiver> {
     match inputs.first() {
         Some(FnArg::Receiver(recv)) => {
             if recv.reference.is_none() || recv.mutability.is_some() {
-                F::error("must be `&self`").with_span(recv).pipe(Err)
+                Error::custom("must be `&self`").with_span(recv).pipe(Err)
             } else {
                 Ok(recv)
             }
         }
-        Some(FnArg::Typed(ty)) => F::error("must have `&self` as the first argument")
+        Some(FnArg::Typed(ty)) => Error::custom("must have `&self` as the first argument")
             .with_span(ty)
             .pipe(Err),
-        None => F::error("missing `&self` as the first argument")
+        None => Error::custom("missing `&self` as the first argument")
             .with_span(&sig)
             .pipe(Err),
     }
 }
 
-fn name_or_symbol<F: FlagName>(
+fn name_or_symbol(
     span: Span,
     name: Option<PropKeyString>,
     symbol: Option<PropKeySymbol>,
@@ -260,7 +263,7 @@ fn name_or_symbol<F: FlagName>(
         (None, Some(StringLike(symbol))) => Some(PropertyKey::Symbol(symbol)).into(),
         (Some(StringLike(name)), Some(_)) => (
             Some(PropertyKey::String(name)),
-            F::error("cannot specify both a name and a symbol").with_span(&span),
+            Error::custom("cannot specify both a name and a symbol").with_span(&span),
         )
             .into(),
     }

@@ -1,4 +1,4 @@
-use darling::{error::Accumulator, Result};
+use darling::{Error, Result};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
@@ -9,14 +9,14 @@ use tap::Pipe;
 
 use crate::{
     util::{
-        only_inherent_impl, use_deno, use_prelude, BindFunction, FatalErrors, FlagName,
-        FunctionLength, FunctionThis, PropertyKey, RecoverableErrors, V8Conv,
+        only_inherent_impl, use_deno, use_prelude, BindFunction, FatalErrors, FunctionLength,
+        FunctionThis, PropertyKey, RecoverableErrors, V8Conv,
     },
     Iterator_,
 };
 
 pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
-    let errors = Accumulator::default();
+    let errors = Error::accumulator();
 
     let (item, mut errors) = ItemImpl::parse.parse2(item).or_fatal(errors)?;
 
@@ -48,7 +48,7 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
             let mut item_type = item_type.into_iter();
             let ty = item_type.next().unwrap().0;
             "more than 1 `type Item` specified\nspecify 1 or none"
-                .pipe(Iterator_::error)
+                .pipe(Error::custom)
                 .with_span(&item_type.next().unwrap().1)
                 .pipe(|e| errors.push(e));
             ty
@@ -160,7 +160,7 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
 fn item_type(item: ImplItem) -> Result<(V8Conv, Ident)> {
     let ImplItem::Type(ty) = item else {
         return "unexpected item\nmove this item to another impl block"
-            .pipe(Iterator_::error)
+            .pipe(Error::custom)
             .with_span(&item)
             .pipe(Err);
     };
@@ -177,15 +177,15 @@ fn item_type(item: ImplItem) -> Result<(V8Conv, Ident)> {
 
     if ident != "Item" {
         return "unexpected type name, expected `type Item`"
-            .pipe(Iterator_::error)
+            .pipe(Error::custom)
             .with_span(&ident)
             .pipe(Err);
     }
 
-    let mut errors = Accumulator::default();
+    let mut errors = Error::accumulator();
 
     errors.handle(if !attrs.is_empty() {
-        Iterator_::error("macro ignores attributes in this location")
+        Error::custom("macro ignores attributes in this location")
             .with_span(&quote! { #(#attrs)* })
             .pipe(Err)
     } else {
@@ -193,7 +193,7 @@ fn item_type(item: ImplItem) -> Result<(V8Conv, Ident)> {
     });
 
     errors.handle(if defaultness.is_some() {
-        Iterator_::error("macro ignores `default` in this location")
+        Error::custom("macro ignores `default` in this location")
             .with_span(&defaultness)
             .pipe(Err)
     } else {
@@ -201,7 +201,7 @@ fn item_type(item: ImplItem) -> Result<(V8Conv, Ident)> {
     });
 
     errors.handle(if !generics.params.is_empty() {
-        Iterator_::error("macro ignores type params in this location")
+        Error::custom("macro ignores type params in this location")
             .with_span(&generics.params)
             .pipe(Err)
     } else {
@@ -209,7 +209,7 @@ fn item_type(item: ImplItem) -> Result<(V8Conv, Ident)> {
     });
 
     errors.handle(if generics.where_clause.is_some() {
-        Iterator_::error("macro ignores where clause in this location")
+        Error::custom("macro ignores where clause in this location")
             .with_span(&generics.where_clause)
             .pipe(Err)
     } else {
@@ -218,7 +218,7 @@ fn item_type(item: ImplItem) -> Result<(V8Conv, Ident)> {
 
     errors.handle(
         if matches!(vis, Visibility::Public(_) | Visibility::Restricted(_)) {
-            Iterator_::error("macro ignores visibility modifiers in this location")
+            Error::custom("macro ignores visibility modifiers in this location")
                 .with_span(&vis)
                 .pipe(Err)
         } else {

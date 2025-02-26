@@ -12,7 +12,7 @@ use crate::{
         v8_conv_impl::{
             impl_as_ref_inner, impl_from_inner, impl_from_v8, impl_into_inner, impl_to_v8,
         },
-        FatalErrors, FlagName, NoGenerics, Unary, V8InnerType,
+        FatalErrors, NoGenerics, Unary, V8InnerType,
     },
     Value,
 };
@@ -45,7 +45,7 @@ pub fn value(value: Value, item: TokenStream) -> Result<TokenStream> {
 
     let (inner_ty, errors) = expect
         .to_inner_type()
-        .ok_or_else(|| Value::error("expected `v8::Global<v8::...>`").with_span(&outer_ty))
+        .ok_or_else(|| Error::custom("expected `v8::Global<v8::...>`").with_span(&outer_ty))
         .or_fatal(errors)?;
 
     let impl_from = impl_from_inner(&outer_ty, &ident);

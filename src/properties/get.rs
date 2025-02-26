@@ -1,4 +1,4 @@
-use darling::{error::Accumulator, Result};
+use darling::{error::Accumulator, Error, Result};
 use proc_macro2::TokenStream;
 use syn::{spanned::Spanned, FnArg, Generics, Signature};
 
@@ -10,11 +10,9 @@ use crate::{
 use super::Getter;
 
 pub fn impl_getter(_: Getter, sig: Signature) -> Result<Vec<TokenStream>> {
-    let mut errors = Accumulator::default();
+    let mut errors = Error::accumulator();
 
-    MaybeAsync::Sync
-        .only::<Getter>(&sig)
-        .and_recover(&mut errors);
+    MaybeAsync::Sync.only(&sig).and_recover(&mut errors);
 
     let span = sig.span();
 
@@ -32,7 +30,7 @@ pub fn impl_getter(_: Getter, sig: Signature) -> Result<Vec<TokenStream>> {
         ..
     } = generics;
 
-    let self_arg = errors.handle(self_arg::<Getter>(&inputs, span));
+    let self_arg = errors.handle(self_arg(&inputs, span));
 
     todo!()
 }

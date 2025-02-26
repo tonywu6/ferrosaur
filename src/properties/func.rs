@@ -1,11 +1,10 @@
-use darling::{error::Accumulator, Result};
+use darling::{Error, Result};
 use proc_macro2::TokenStream;
 use syn::{spanned::Spanned, Signature, Type};
 use tap::Pipe;
 
 use crate::util::{
-    CallFunction, Caveat, FlagName, FunctionIntent, MergeErrors, NewtypeMeta, PropertyKey,
-    RecoverableErrors,
+    CallFunction, Caveat, FunctionIntent, MergeErrors, NewtypeMeta, PropertyKey, RecoverableErrors,
 };
 
 use super::{name_or_symbol, property_key, self_arg, Constructor, Function};
@@ -16,11 +15,9 @@ pub enum Callable {
 }
 
 pub fn impl_function(call: Callable, mut sig: Signature) -> Result<Vec<TokenStream>> {
-    let mut errors = Accumulator::default();
+    let mut errors = Error::accumulator();
 
-    let fn_self = errors
-        .handle(self_arg::<Function>(&sig.inputs, sig.span()))
-        .cloned();
+    let fn_self = errors.handle(self_arg(&sig.inputs, sig.span())).cloned();
 
     let call = match call {
         Callable::Func(func) => func_to_call(func, &mut sig).and_recover(&mut errors),
@@ -50,12 +47,12 @@ fn func_to_call(
     Function { name, symbol, this }: Function,
     sig: &mut Signature,
 ) -> Caveat<CallFunction> {
-    let mut errors = Accumulator::default();
+    let mut errors = Error::accumulator();
 
     let mut call = CallFunction::from_sig(sig).and_recover(&mut errors);
 
-    let name = name_or_symbol::<Function>(sig.span(), name.into_inner(), symbol.into_inner())
-        .and_recover(&mut errors);
+    let name =
+        name_or_symbol(sig.span(), name.into_inner(), symbol.into_inner()).and_recover(&mut errors);
     let name = property_key(&sig.ident, name);
 
     call.source = name.into();
@@ -65,7 +62,7 @@ fn func_to_call(
 }
 
 fn ctor_to_call(Constructor { class }: Constructor, sig: &mut Signature) -> Caveat<CallFunction> {
-    let mut errors = Accumulator::default();
+    let mut errors = Error::accumulator();
 
     let mut call = CallFunction::from_sig(sig).and_recover(&mut errors);
 
@@ -93,7 +90,7 @@ fn ctor_to_call(Constructor { class }: Constructor, sig: &mut Signature) -> Cave
                 PropertyKey::String(ident.to_string())
             } else {
                 "cannot infer class name from return type\nspecify `#[js(new(class(...)))]` instead"
-                    .pipe(Constructor::error)
+                    .pipe(Error::custom)
                     .with_span(ty)
                     .pipe(|e| errors.push(e));
                 property_key(&sig.ident, None)
@@ -102,7 +99,7 @@ fn ctor_to_call(Constructor { class }: Constructor, sig: &mut Signature) -> Cave
 
         (None, None) => {
             "cannot infer class name\nspecify a return type, or use `#[js(new(class(...)))]`"
-                .pipe(Constructor::error)
+                .pipe(Error::custom)
                 .with_span(&sig.ident)
                 .pipe(|e| errors.push(e));
             property_key(&sig.ident, None)

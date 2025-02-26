@@ -5,6 +5,7 @@ use darling::{
 };
 use proc_macro2::TokenStream;
 use syn::{parse_macro_input, Lit, LitStr, Meta};
+use util::ErrorLocation;
 
 mod fast_string;
 mod global_this;
@@ -29,11 +30,20 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
     let (js, errors) = FlagLike::<JsItem>::parse_macro_attribute(args).or_fatal(errors)?;
 
     let (js, errors) = match js.0 {
-        JsItem::Module(FlagLike(module)) => module::module(module, item),
-        JsItem::GlobalThis(FlagLike(global_this)) => global_this::global_this(global_this, item),
-        JsItem::Value(FlagLike(value)) => value::value(value, item),
-        JsItem::Properties(FlagLike(properties)) => properties::properties(properties, item),
-        JsItem::Iterator(FlagLike(iterator)) => iterator::iterator(iterator, item),
+        JsItem::Value(FlagLike(value)) => value::value(value, item).error_at::<JsItem, Value>(),
+
+        JsItem::Module(FlagLike(module)) => {
+            module::module(module, item).error_at::<JsItem, Module>()
+        }
+        JsItem::GlobalThis(FlagLike(global_this)) => {
+            global_this::global_this(global_this, item).error_at::<JsItem, GlobalThis>()
+        }
+        JsItem::Properties(FlagLike(properties)) => {
+            properties::properties(properties, item).error_at::<JsItem, Properties>()
+        }
+        JsItem::Iterator(FlagLike(iterator)) => {
+            iterator::iterator(iterator, item).error_at::<JsItem, Iterator_>()
+        }
     }
     .or_fatal(errors)?;
 

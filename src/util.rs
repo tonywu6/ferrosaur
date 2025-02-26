@@ -3,8 +3,8 @@ use heck::ToSnakeCase;
 use proc_macro2::{TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, token::Paren, Generics, Ident, ItemImpl, Path,
-    PathSegment, Token, VisRestricted, Visibility,
+    punctuated::Punctuated, spanned::Spanned, token::Paren, Generics, Ident, ImplItem, ImplItemFn,
+    ItemImpl, Path, PathSegment, Token, VisRestricted, Visibility,
 };
 use tap::{Conv, Pipe, Tap};
 
@@ -70,6 +70,19 @@ impl<T> RecoverableErrors<T> for Caveat<T> {
             errors.push(err);
         }
         ok
+    }
+}
+
+pub trait ErrorLocation {
+    fn error_at<E: FlagEnum, F: FlagName>(self) -> Self;
+}
+
+impl<T> ErrorLocation for Result<T> {
+    fn error_at<E: FlagEnum, F: FlagName>(self) -> Self {
+        match self {
+            Ok(value) => Ok(value),
+            Err(error) => Err(error.at(format!("!!!!#[{}({})]", E::PREFIX, F::PREFIX))),
+        }
     }
 }
 
@@ -191,27 +204,38 @@ pub fn inner_mod_name<T: ToTokens>(prefix: &str, item: T) -> Ident {
 }
 
 pub fn only_inherent_impl<F: FlagName>(item: &ItemImpl) -> Result<()> {
-    let mut errors = Accumulator::default();
+    let mut errors = Error::accumulator();
 
     if item.defaultness.is_some() {
-        F::error("impl cannot be `default`")
+        Error::custom("impl cannot be `default`")
             .with_span(&item.defaultness)
             .pipe(|e| errors.push(e));
     }
 
     if item.unsafety.is_some() {
-        F::error("impl cannot be `unsafe`")
+        Error::custom("impl cannot be `unsafe`")
             .with_span(&item.unsafety)
             .pipe(|e| errors.push(e));
     }
 
     if let Some((_, ty, _)) = &item.trait_ {
-        F::error("cannot be a trait impl")
+        Error::custom("cannot be a trait impl")
             .with_span(ty)
             .pipe(|e| errors.push(e));
     }
 
     errors.finish()
+}
+
+pub fn only_fn_item(item: ImplItem) -> Result<ImplItemFn> {
+    if let ImplItem::Fn(func) = item {
+        Ok(func)
+    } else {
+        "only fn items are supported\nfn should have an empty body\nmove this item to another impl block"
+            .pipe(Error::custom)
+            .with_span(&item)
+            .pipe(Err)
+    }
 }
 
 #[allow(unused)]

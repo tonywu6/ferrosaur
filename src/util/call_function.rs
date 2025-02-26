@@ -1,4 +1,4 @@
-use darling::{error::Accumulator, Error};
+use darling::Error;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
@@ -207,7 +207,7 @@ impl CallFunction {
 
 impl CallFunction {
     pub fn from_sig(sig: &mut Signature) -> Caveat<Self> {
-        let mut errors = Accumulator::default();
+        let mut errors = Error::accumulator();
 
         let mut inputs = Vec::<FunctionInput>::new();
 
@@ -332,7 +332,7 @@ impl CallFunction {
 
 impl FunctionIntent {
     pub fn only(self, sig: &Signature) -> Caveat<Self> {
-        let mut errors = Accumulator::default();
+        let mut errors = Error::accumulator();
 
         let color = Self::some(sig).and_recover(&mut errors);
 
@@ -361,11 +361,11 @@ impl FunctionIntent {
             None => Self::Called,
             Some(token) => Self::Awaited(*token),
         };
-        (color, Self::supported(sig).into_one()).into()
+        (color, Self::supported(sig)).into()
     }
 
-    pub fn supported(sig: &Signature) -> Accumulator {
-        let mut errors = Accumulator::default();
+    pub fn supported(sig: &Signature) -> Option<Error> {
+        let mut errors = Error::accumulator();
 
         macro_rules! deny {
             ($attr:ident, $msg:literal) => {
@@ -382,7 +382,7 @@ impl FunctionIntent {
         deny!(abi, "fn cannot be `extern` here");
         deny!(variadic, "fn cannot be variadic here");
 
-        errors
+        errors.into_one()
     }
 }
 
