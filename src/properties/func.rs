@@ -1,10 +1,11 @@
 use darling::{Error, Result};
 use proc_macro2::TokenStream;
-use syn::{spanned::Spanned, Signature, Type};
+use syn::{spanned::Spanned, FnArg, Pat, PatIdent, PatType, Signature, Type};
 use tap::Pipe;
 
 use crate::util::{
-    CallFunction, Caveat, FunctionIntent, MergeErrors, NewtypeMeta, PropertyKey, RecoverableErrors,
+    CallFunction, Caveat, FunctionIntent, FunctionThis, MergeErrors, NewtypeMeta, PropertyKey,
+    RecoverableErrors,
 };
 
 use super::{name_or_symbol, property_key, self_arg, Constructor, Function};
@@ -49,14 +50,37 @@ fn func_to_call(
 ) -> Caveat<CallFunction> {
     let mut errors = Error::accumulator();
 
-    let mut call = CallFunction::from_sig(sig).and_recover(&mut errors);
-
     let name =
         name_or_symbol(sig.span(), name.into_inner(), symbol.into_inner()).and_recover(&mut errors);
     let name = property_key(&sig.ident, name);
 
+    let mut call = CallFunction::from_sig(sig).and_recover(&mut errors);
+
     call.source = name.into();
     call.this = this;
+
+    if matches!(this, FunctionThis::Unbound) {
+        let is_this = match sig.inputs.get(1) {
+            Some(FnArg::Typed(PatType { pat, .. })) => matches!(&**pat, Pat::Ident(PatIdent {
+                    ident,
+                    by_ref: None,
+                    mutability: None,
+                    subpat: None,
+                    ..
+                }) if ident == "this"),
+            _ => false,
+        };
+        if !is_this {
+            "`this(unbound)` requires an explicit `this` as the first argument"
+                .pipe(Error::custom)
+                .with_span(&if let Some(arg) = sig.inputs.get(1) {
+                    arg.span()
+                } else {
+                    sig.ident.span()
+                })
+                .pipe(|e| errors.push(e))
+        }
+    }
 
     (call, errors.into_one()).into()
 }

@@ -111,7 +111,7 @@ impl ToTokens for BindFunction {
                 }
                 FunctionLength::Variadic => quote! {{
                     let this = #this;
-                    ::std::iter::once(this)
+                    ::core::iter::once(this)
                         .chain(args.iter().map(|arg| v8::Local::new(scope, arg)))
                         .collect::<Vec<_>>()
                 }},
@@ -122,7 +122,9 @@ impl ToTokens for BindFunction {
                     args.map(|arg| v8::Local::new(scope, arg))
                 }},
                 FunctionLength::Variadic => quote! {{
-                    args.into_iter().map(|arg| v8::Local::new(scope, arg)).collect()
+                    args.into_iter()
+                        .map(|arg| v8::Local::new(scope, arg))
+                        .collect::<Vec<_>>()
                 }},
             }
         };

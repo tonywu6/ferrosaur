@@ -43,15 +43,19 @@ async fn test_this() -> Result<()> {
     let checker = main.this_checker(rt)?;
 
     let this_1 = checker.get_this(rt)?;
-    let this_2 = checker.get_undefined(rt)?;
+    let this_2 = checker.get_unbound(main.as_ref().clone(), rt)?;
+    let this_3 = checker.get_undefined(rt)?;
 
     {
         let scope = &mut rt.handle_scope();
         let checker = v8::Local::new(scope, checker.as_ref());
+        let main = v8::Local::new(scope, main.as_ref()).into();
         let this_1 = v8::Local::new(scope, this_1);
         let this_2 = v8::Local::new(scope, this_2);
+        let this_3 = v8::Local::new(scope, this_3);
         assert!(this_1.same_value(checker));
-        assert!(this_2.is_undefined());
+        assert!(this_2.same_value(main));
+        assert!(this_3.is_undefined());
     }
 
     Ok(())

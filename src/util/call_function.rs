@@ -62,7 +62,24 @@ impl CallFunction {
         };
 
         let (casts, length) = {
-            if self
+            let variadic = self
+                .inputs
+                .iter()
+                .any(|FunctionInput { spread, .. }| *spread);
+
+            let length = if variadic {
+                FunctionLength::Variadic
+            } else {
+                FunctionLength::Fixed(self.inputs.len())
+            };
+
+            let casts = if self.inputs.is_empty() {
+                if variadic {
+                    quote! { vec![] }
+                } else {
+                    quote! { [] }
+                }
+            } else if self
                 .inputs
                 .iter()
                 .any(|FunctionInput { spread, .. }| *spread)
@@ -94,14 +111,12 @@ impl CallFunction {
                         }
                     });
 
-                let casts = quote! {{
+                quote! {{
                     let __scope = &mut _rt.handle_scope();
                     let mut __args = Vec::new();
                     #(#casts)*
                     __args
-                }};
-
-                (casts, FunctionLength::Variadic)
+                }}
             } else {
                 let casts = self.inputs.iter().map(|FunctionInput { ident, ty, .. }| {
                     let name = ident.to_string();
@@ -115,14 +130,14 @@ impl CallFunction {
 
                 let names = self.inputs.iter().map(|FunctionInput { ident, .. }| ident);
 
-                let casts = quote! {{
+                quote! {{
                     let __scope = &mut _rt.handle_scope();
                     #(#casts)*
                     [#(#names),*]
-                }};
+                }}
+            };
 
-                (casts, FunctionLength::Fixed(self.inputs.len()))
-            }
+            (casts, length)
         };
 
         let fn_call = BindFunction {
@@ -213,7 +228,6 @@ impl CallFunction {
 
         sig.inputs = std::mem::take(&mut sig.inputs)
             .into_iter()
-            .skip(1)
             .map(|arg| {
                 let FnArg::Typed(arg) = arg else { return arg };
 

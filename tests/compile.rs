@@ -74,6 +74,9 @@ impl ThisChecker {
 
     #[js(func(name(whoami), this(undefined)))]
     pub fn get_undefined(&self) -> v8::Global<v8::Value> {}
+
+    #[js(func(name(whoami), this(unbound)))]
+    pub fn get_unbound(&self, this: v8::Global<v8::Object>) -> v8::Global<v8::Value> {}
 }
 
 #[js(module(import("js/i18n.js"), side_module))]
