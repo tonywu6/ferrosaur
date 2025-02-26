@@ -163,7 +163,6 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
 
         #[doc(hidden)]
         mod #inner_mod {
-            #[allow(unused)]
             #uses
 
             #item

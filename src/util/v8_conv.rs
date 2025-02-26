@@ -4,9 +4,10 @@ use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse::{Parse, Parser},
     punctuated::Punctuated,
+    spanned::Spanned,
     token::Paren,
-    AngleBracketedGenericArguments, GenericArgument, Ident, Meta, Path, PathArguments, PathSegment,
-    ReturnType, Token, Type, TypePath, TypeTuple,
+    AngleBracketedGenericArguments, FnArg, GenericArgument, Ident, Meta, Path, PathArguments,
+    PathSegment, ReturnType, Token, Type, TypePath, TypeTuple,
 };
 use tap::Pipe;
 
@@ -31,6 +32,23 @@ impl V8Conv {
         .into()
     }
 
+    pub fn from_fn_arg(arg: FnArg) -> Caveat<Self> {
+        match arg {
+            FnArg::Receiver(recv) => PathSegment {
+                ident: Token![Self](recv.span()).into(),
+                arguments: PathArguments::None,
+            }
+            .pipe(|path| Path {
+                leading_colon: None,
+                segments: std::iter::once(path).collect(),
+            })
+            .pipe(|path| TypePath { qself: None, path })
+            .pipe(Type::Path)
+            .pipe(Self::from_type),
+            FnArg::Typed(ty) => Self::from_type(*ty.ty),
+        }
+    }
+
     pub fn from_output(ty: ReturnType) -> Caveat<Self> {
         match ty {
             ReturnType::Default => TypeTuple {
@@ -38,7 +56,11 @@ impl V8Conv {
                 elems: Punctuated::new(),
             }
             .pipe(Type::Tuple)
-            .pipe(Self::from_type),
+            .pipe(|ty| Self::Serde {
+                ty,
+                hint: format_ident!("serde"),
+            })
+            .into(),
             ReturnType::Type(_, ty) => Self::from_type(*ty),
         }
     }

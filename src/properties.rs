@@ -1,19 +1,19 @@
 use darling::{util::Flag, Error, FromMeta, Result};
 use heck::ToLowerCamelCase;
-use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use proc_macro2::TokenStream;
+use quote::quote;
 use syn::{
     parse::{Parse, Parser},
     punctuated::Punctuated,
-    FnArg, Generics, Ident, ImplItem, ImplItemFn, ItemImpl, Receiver, Signature, Token,
+    FnArg, Generics, Ident, ImplItem, ImplItemFn, ItemImpl, Receiver, Token,
 };
 use tap::Pipe;
 
 use crate::{
     util::{
         only_fn_item, only_inherent_impl, use_deno, use_prelude, Caveat, ErrorLocation,
-        FatalErrors, FlagEnum, FlagLike, FlagName, FunctionThis, MergeErrors, PropertyKey,
-        RecoverableErrors, StringLike, Unary, WellKnown,
+        FatalErrors, FlagEnum, FlagLike, FlagName, FunctionThis, PropertyKey, StringLike, Unary,
+        WellKnown,
     },
     Properties,
 };
@@ -21,6 +21,7 @@ use crate::{
 mod func;
 mod get;
 mod prop;
+mod set;
 
 #[derive(Debug, Clone, FromMeta)]
 enum JsProperty {
@@ -28,6 +29,7 @@ enum JsProperty {
     Func(FlagLike<Function>),
     New(FlagLike<Constructor>),
     Get(FlagLike<Getter>),
+    Set(FlagLike<Setter>),
 }
 
 type PropKeyString = StringLike<String>;
@@ -53,6 +55,9 @@ struct Function {
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Getter;
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Setter;
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Constructor {
@@ -151,6 +156,9 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
         JsProperty::Get(FlagLike(getter)) => {
             get::impl_getter(getter, sig).error_at::<JsProperty, Getter>()
         }
+        JsProperty::Set(FlagLike(setter)) => {
+            set::impl_setter(setter, sig).error_at::<JsProperty, Setter>()
+        }
     }
     .or_fatal(errors)?;
 
@@ -163,78 +171,7 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
     Ok(quote! { #(#impl_)* })
 }
 
-#[derive(Debug, Clone, Copy)]
-enum MaybeAsync {
-    Sync,
-    Async(Token![async]),
-}
-
-impl MaybeAsync {
-    fn only(self, sig: &Signature) -> Caveat<Self> {
-        let mut errors = Error::accumulator();
-
-        let color = Self::some(sig).and_recover(&mut errors);
-
-        match self {
-            MaybeAsync::Sync => {
-                if let MaybeAsync::Async(span) = color {
-                    Error::custom("fn cannot be `async` here")
-                        .with_span(&span)
-                        .pipe(|e| errors.push(e));
-                }
-            }
-            MaybeAsync::Async(_) => {
-                if matches!(color, MaybeAsync::Sync) {
-                    Error::custom("fn is required to be `async` here")
-                        .with_span(&sig.fn_token)
-                        .pipe(|e| errors.push(e));
-                }
-            }
-        }
-
-        (color, errors.into_one()).into()
-    }
-
-    fn some(sig: &Signature) -> Caveat<Self> {
-        let color = match &sig.asyncness {
-            None => MaybeAsync::Sync,
-            Some(token) => MaybeAsync::Async(*token),
-        };
-        (color, Self::supported(sig)).into()
-    }
-
-    fn supported(sig: &Signature) -> Option<Error> {
-        let mut errors = Error::accumulator();
-
-        macro_rules! deny {
-            ($attr:ident, $msg:literal) => {
-                if sig.$attr.is_some() {
-                    Error::custom($msg)
-                        .with_span(&sig.$attr)
-                        .pipe(|e| errors.push(e));
-                }
-            };
-        }
-
-        deny!(constness, "fn cannot be `const` here");
-        deny!(unsafety, "fn cannot be `unsafe` here");
-        deny!(abi, "fn cannot be `extern` here");
-        deny!(variadic, "fn cannot be variadic here");
-
-        errors.into_one()
-    }
-}
-
-impl ToTokens for MaybeAsync {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        match self {
-            Self::Async(token) => tokens.extend(quote! { #token }),
-            Self::Sync => {}
-        }
-    }
-}
-
-fn self_arg(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receiver> {
+fn self_arg<'a>(inputs: &'a Punctuated<FnArg, Token![,]>, ident: &Ident) -> Result<&'a Receiver> {
     match inputs.first() {
         Some(FnArg::Receiver(recv)) => {
             if recv.reference.is_none() || recv.mutability.is_some() {
@@ -247,25 +184,8 @@ fn self_arg(inputs: &Punctuated<FnArg, Token![,]>, sig: Span) -> Result<&Receive
             .with_span(ty)
             .pipe(Err),
         None => Error::custom("missing `&self` as the first argument")
-            .with_span(&sig)
+            .with_span(ident)
             .pipe(Err),
-    }
-}
-
-fn name_or_symbol(
-    span: Span,
-    name: Option<PropKeyString>,
-    symbol: Option<PropKeySymbol>,
-) -> Caveat<Option<PropertyKey>> {
-    match (name, symbol) {
-        (None, None) => None.into(),
-        (Some(StringLike(name)), None) => Some(PropertyKey::String(name)).into(),
-        (None, Some(StringLike(symbol))) => Some(PropertyKey::Symbol(symbol)).into(),
-        (Some(StringLike(name)), Some(_)) => (
-            Some(PropertyKey::String(name)),
-            Error::custom("cannot specify both a name and a symbol").with_span(&span),
-        )
-            .into(),
     }
 }
 
@@ -276,6 +196,46 @@ fn property_key(src: &Ident, alt: Option<PropertyKey>) -> PropertyKey {
             .to_string()
             .to_lower_camel_case()
             .pipe(PropertyKey::String),
+    }
+}
+
+struct ResolveName<'a> {
+    ident: &'a Ident,
+    name: Option<PropKeyString>,
+    symbol: Option<PropKeySymbol>,
+}
+
+impl ResolveName<'_> {
+    fn resolve(self) -> Caveat<PropertyKey> {
+        let Self {
+            ident,
+            name,
+            symbol,
+        } = self;
+
+        let mut error = None;
+
+        let specified = match (name, symbol) {
+            (None, None) => None,
+            (Some(StringLike(name)), None) => Some(PropertyKey::String(name)),
+            (None, Some(StringLike(symbol))) => Some(PropertyKey::Symbol(symbol)),
+            (Some(StringLike(name)), Some(_)) => {
+                error = Error::custom("cannot specify both a name and a symbol")
+                    .with_span(&ident)
+                    .pipe(Some);
+                Some(PropertyKey::String(name))
+            }
+        };
+
+        let resolved = match specified {
+            Some(name) => name,
+            None => ident
+                .to_string()
+                .to_lower_camel_case()
+                .pipe(PropertyKey::String),
+        };
+
+        (resolved, error).into()
     }
 }
 
@@ -318,6 +278,14 @@ impl FlagName for Constructor {
 
 impl FlagName for Getter {
     const PREFIX: &'static str = "get";
+
+    fn unit() -> Result<Self> {
+        Ok(Self)
+    }
+}
+
+impl FlagName for Setter {
+    const PREFIX: &'static str = "set";
 
     fn unit() -> Result<Self> {
         Ok(Self)

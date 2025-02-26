@@ -1,19 +1,19 @@
 use darling::{Error, Result};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{spanned::Spanned, Generics, ReturnType, Signature};
+use syn::{Generics, Signature};
 use tap::Pipe;
 
-use crate::util::{NewtypeMeta, RecoverableErrors, V8Conv};
+use crate::util::{
+    only_explicit_return_type, FunctionIntent, NewtypeMeta, RecoverableErrors, V8Conv,
+};
 
-use super::{name_or_symbol, property_key, self_arg, MaybeAsync, Property};
+use super::{self_arg, Property, ResolveName};
 
 pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>> {
     let mut errors = Error::accumulator();
 
-    MaybeAsync::Sync.only(&sig).and_recover(&mut errors);
-
-    let span = sig.span();
+    FunctionIntent::Called.only(&sig).and_recover(&mut errors);
 
     let Signature {
         ident,
@@ -29,10 +29,12 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         ..
     } = generics;
 
-    let self_arg = errors.handle(self_arg(&inputs, span));
+    let self_arg = errors.handle(self_arg(&inputs, &ident));
+
+    errors.handle(only_explicit_return_type(&output, &ident));
 
     errors.handle(if inputs.len() > 1 {
-        Error::custom("fn must not have extra arguments")
+        Error::custom("must not have extra arguments")
             .with_span(&inputs.get(1))
             .pipe(Err)
     } else {
@@ -45,20 +47,15 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
         with_setter,
     } = prop;
 
-    errors.handle(if matches!(output, ReturnType::Default) {
-        Error::custom("fn must have an explicit return type")
-            .with_span(&ident)
-            .pipe(Err)
-    } else {
-        Ok(())
-    });
+    let name = ResolveName {
+        ident: &ident,
+        name: name.into_inner(),
+        symbol: symbol.into_inner(),
+    }
+    .resolve()
+    .and_recover(&mut errors);
 
     let return_ty = V8Conv::from_output(output).and_recover(&mut errors);
-
-    let name = name_or_symbol(ident.span(), name.into_inner(), symbol.into_inner())
-        .and_recover(&mut errors);
-
-    let name = property_key(&ident, name);
 
     let getter = {
         let getter = return_ty.to_getter();

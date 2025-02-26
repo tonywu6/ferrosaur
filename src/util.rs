@@ -3,8 +3,9 @@ use heck::ToSnakeCase;
 use proc_macro2::{TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, token::Paren, Generics, Ident, ImplItem, ImplItemFn,
-    ItemImpl, Path, PathSegment, Token, VisRestricted, Visibility,
+    punctuated::Punctuated, spanned::Spanned, token::Paren, FnArg, Generics, Ident, ImplItem,
+    ImplItemFn, ItemImpl, Pat, PatIdent, PatType, Path, PathSegment, ReturnType, Token,
+    VisRestricted, Visibility,
 };
 use tap::{Conv, Pipe, Tap};
 
@@ -81,7 +82,7 @@ impl<T> ErrorLocation for Result<T> {
     fn error_at<E: FlagEnum, F: FlagName>(self) -> Self {
         match self {
             Ok(value) => Ok(value),
-            Err(error) => Err(error.at(format!("!!!!#[{}({})]", E::PREFIX, F::PREFIX))),
+            Err(error) => Err(error.at(format!("#[{}({})]", E::PREFIX, F::PREFIX))),
         }
     }
 }
@@ -235,6 +236,37 @@ pub fn only_fn_item(item: ImplItem) -> Result<ImplItemFn> {
             .pipe(Error::custom)
             .with_span(&item)
             .pipe(Err)
+    }
+}
+
+pub fn only_pat_ident(arg: &FnArg) -> Result<&Ident> {
+    let ident = match arg {
+        FnArg::Typed(PatType { pat, .. }) => match &**pat {
+            Pat::Ident(PatIdent {
+                ident,
+                by_ref: None,
+                mutability: None,
+                subpat: None,
+                ..
+            }) => Some(ident),
+            _ => None,
+        },
+        _ => None,
+    };
+    if let Some(ident) = ident {
+        Ok(ident)
+    } else {
+        Err(Error::custom("expected an identifier").with_span(arg))
+    }
+}
+
+pub fn only_explicit_return_type(output: &ReturnType, ident: &Ident) -> Result<()> {
+    if matches!(output, ReturnType::Default) {
+        Error::custom("must have an explicit return type")
+            .with_span(&ident)
+            .pipe(Err)
+    } else {
+        Ok(())
     }
 }
 

@@ -234,24 +234,15 @@ impl CallFunction {
                 let ty = V8Conv::from_type((*arg.ty).clone()).and_recover(&mut errors);
 
                 match *arg.pat {
-                    Pat::Ident(ref ident) => {
-                        if let Some((sub, _)) = &ident.subpat {
-                            Error::custom("subpattern not supported\nremove this")
-                                .with_span(sub)
-                                .pipe(|e| errors.push(e));
-                        }
-                        if let Some(ref_) = &ident.by_ref {
-                            Error::custom("`ref` not supported\nremove this")
-                                .with_span(ref_)
-                                .pipe(|e| errors.push(e));
-                        }
-                        if let Some(mut_) = &ident.mutability {
-                            Error::custom("`mut` not supported\nremove this")
-                                .with_span(mut_)
-                                .pipe(|e| errors.push(e));
-                        }
+                    Pat::Ident(PatIdent {
+                        ref ident,
+                        by_ref: None,
+                        mutability: None,
+                        subpat: None,
+                        ..
+                    }) => {
                         let spread = false;
-                        let ident = ident.ident.clone();
+                        let ident = ident.clone();
                         let arg = arg.tap_mut(|arg| arg.ty = ty.to_type().into());
                         inputs.push(FunctionInput { ident, ty, spread });
                         FnArg::Typed(arg)
@@ -305,7 +296,7 @@ impl CallFunction {
                     }
 
                     ref pat => {
-                        Error::custom("pattern not supported")
+                        Error::custom("expected an identifier or spread argument")
                             .with_span(pat)
                             .pipe(|e| errors.push(e));
                         FnArg::Typed(arg)

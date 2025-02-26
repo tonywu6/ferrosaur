@@ -9,7 +9,7 @@ mod compile;
 mod util;
 
 use crate::{
-    compile::{Global, Main},
+    compile::{Global, I18n, Main},
     util::deno,
 };
 
@@ -114,4 +114,50 @@ impl Global {
 
     #[js(new(class(Date)))]
     fn date(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
+}
+
+#[tokio::test]
+async fn test_indexing_get() -> Result<()> {
+    let rt = &mut deno().await?;
+
+    let i18n = I18n::new(rt).await?;
+
+    assert_eq!("https://zh.wikipedia.org/wiki/千字文", i18n.zh_cn(rt)?);
+
+    assert_eq!(
+        i18n.i18n(
+            "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern",
+            rt,
+        )?,
+        "https://de.wikipedia.org/wiki/Pangramm",
+    );
+
+    assert!(i18n.i18n("", rt).is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_indexing_set() -> Result<()> {
+    let rt = &mut deno().await?;
+
+    let global = Global::new(rt);
+
+    let i18n = {
+        let i18n = I18n::new(rt).await?;
+        let scope = &mut rt.handle_scope();
+        let i18n = v8::Local::new(scope, i18n.as_ref());
+        v8::Global::new(scope, i18n.cast::<v8::Value>())
+    };
+
+    global.declare("foo", i18n, rt)?;
+
+    {
+        let typeof_ = rt.execute_script("", "typeof foo")?;
+        let scope = &mut rt.handle_scope();
+        let typeof_ = v8::Local::new(scope, typeof_);
+        assert_eq!(typeof_.to_rust_string_lossy(scope), "object")
+    };
+
+    Ok(())
 }

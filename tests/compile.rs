@@ -8,6 +8,9 @@ pub struct Global;
 impl Global {
     #[js(prop)]
     pub fn console(&self) -> Console {}
+
+    #[js(set)]
+    pub fn declare(&self, name: serde<&str>, value: v8::Global<v8::Value>) {}
 }
 
 #[js(properties)]
@@ -48,7 +51,7 @@ pub struct Rectangle;
 
 #[js(properties)]
 impl Rectangle {
-    #[js(prop(with_setter))]
+    #[js(prop)]
     pub fn height(&self) -> serde<f64> {}
 
     #[js(prop(with_setter))]
@@ -84,11 +87,14 @@ pub struct I18n;
 
 #[js(properties)]
 impl I18n {
-    #[js(prop(name = "the quick brown fox jumps over the lazy dog"))]
+    #[js(prop(name = "The quick brown fox jumps over the lazy dog"))]
     pub fn en_us(&self) -> serde<String> {}
 
     #[js(prop(name = "天地玄黄，宇宙洪荒"))]
     pub fn zh_cn(&self) -> serde<String> {}
+
+    #[js(get)]
+    pub fn i18n(&self, key: serde<&str>) -> serde<String> {}
 }
 
 #[js(module(import("js/iter.js"), fast, side_module))]

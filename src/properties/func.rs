@@ -1,14 +1,14 @@
 use darling::{Error, Result};
 use proc_macro2::TokenStream;
-use syn::{spanned::Spanned, FnArg, Pat, PatIdent, PatType, Signature, Type};
+use syn::{spanned::Spanned, Signature, Type};
 use tap::Pipe;
 
 use crate::util::{
-    CallFunction, Caveat, FunctionIntent, FunctionThis, MergeErrors, NewtypeMeta, PropertyKey,
-    RecoverableErrors,
+    only_pat_ident, CallFunction, Caveat, FunctionIntent, FunctionThis, MergeErrors, NewtypeMeta,
+    PropertyKey, RecoverableErrors,
 };
 
-use super::{name_or_symbol, property_key, self_arg, Constructor, Function};
+use super::{property_key, self_arg, Constructor, Function, ResolveName};
 
 pub enum Callable {
     Func(Function),
@@ -18,7 +18,7 @@ pub enum Callable {
 pub fn impl_function(call: Callable, mut sig: Signature) -> Result<Vec<TokenStream>> {
     let mut errors = Error::accumulator();
 
-    let fn_self = errors.handle(self_arg(&sig.inputs, sig.span())).cloned();
+    let fn_self = errors.handle(self_arg(&sig.inputs, &sig.ident)).cloned();
 
     let call = match call {
         Callable::Func(func) => func_to_call(func, &mut sig).and_recover(&mut errors),
@@ -50,9 +50,13 @@ fn func_to_call(
 ) -> Caveat<CallFunction> {
     let mut errors = Error::accumulator();
 
-    let name =
-        name_or_symbol(sig.span(), name.into_inner(), symbol.into_inner()).and_recover(&mut errors);
-    let name = property_key(&sig.ident, name);
+    let name = ResolveName {
+        ident: &sig.ident,
+        name: name.into_inner(),
+        symbol: symbol.into_inner(),
+    }
+    .resolve()
+    .and_recover(&mut errors);
 
     let mut call = CallFunction::from_sig(sig).and_recover(&mut errors);
 
@@ -61,13 +65,13 @@ fn func_to_call(
 
     if matches!(this, FunctionThis::Unbound) {
         let is_this = match sig.inputs.get(1) {
-            Some(FnArg::Typed(PatType { pat, .. })) => matches!(&**pat, Pat::Ident(PatIdent {
-                    ident,
-                    by_ref: None,
-                    mutability: None,
-                    subpat: None,
-                    ..
-                }) if ident == "this"),
+            Some(arg) => {
+                if let Ok(name) = only_pat_ident(arg) {
+                    name == "this"
+                } else {
+                    false
+                }
+            }
             _ => false,
         };
         if !is_this {
