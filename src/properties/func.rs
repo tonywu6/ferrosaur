@@ -1,11 +1,11 @@
 use darling::{Error, Result};
 use proc_macro2::TokenStream;
-use syn::{spanned::Spanned, Signature, Type};
+use syn::{Signature, Type};
 use tap::Pipe;
 
 use crate::util::{
-    expect_self_arg, only_pat_ident, CallFunction, Caveat, FunctionIntent, FunctionThis,
-    MergeErrors, NewtypeMeta, PropertyKey, RecoverableErrors,
+    expect_self_arg, CallFunction, Caveat, FunctionIntent, MergeErrors, NewtypeMeta, PropertyKey,
+    RecoverableErrors,
 };
 
 use super::{property_key, Constructor, Function, ResolveName};
@@ -44,10 +44,7 @@ impl From<Constructor> for Callable {
     }
 }
 
-fn func_to_call(
-    Function { name, symbol, this }: Function,
-    sig: &mut Signature,
-) -> Caveat<CallFunction> {
+fn func_to_call(Function { name, symbol }: Function, sig: &mut Signature) -> Caveat<CallFunction> {
     let mut errors = Error::accumulator();
 
     let name = ResolveName {
@@ -61,30 +58,6 @@ fn func_to_call(
     let mut call = CallFunction::from_sig(sig).and_recover(&mut errors);
 
     call.source = name.into();
-    call.this = this;
-
-    if matches!(this, FunctionThis::Unbound) {
-        let is_this = match sig.inputs.get(1) {
-            Some(arg) => {
-                if let Ok(name) = only_pat_ident(arg) {
-                    name == "this"
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        };
-        if !is_this {
-            "`this(unbound)` requires an explicit `this` as the first argument"
-                .pipe(Error::custom)
-                .with_span(&if let Some(arg) = sig.inputs.get(1) {
-                    arg.span()
-                } else {
-                    sig.ident.span()
-                })
-                .pipe(|e| errors.push(e))
-        }
-    }
 
     (call, errors.into_one()).into()
 }

@@ -75,13 +75,13 @@ struct ThisChecker;
 
 #[js(properties)]
 impl ThisChecker {
-    #[js(func(name(whoami), this(self)))]
+    #[js(func(name(whoami)))]
     pub fn get_this(&self) -> v8::Global<v8::Value> {}
 
-    #[js(func(name(whoami), this(undefined)))]
-    pub fn get_undefined(&self) -> v8::Global<v8::Value> {}
+    #[js(func(name(whoami)))]
+    pub fn get_undefined(&self, this: undefined) -> v8::Global<v8::Value> {}
 
-    #[js(func(name(whoami), this(unbound)))]
+    #[js(func(name(whoami)))]
     pub fn get_unbound(&self, this: v8::Global<v8::Value>) -> v8::Global<v8::Value> {}
 }
 

@@ -1,6 +1,6 @@
-use darling::FromMeta;
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
+use syn::Ident;
 
 use super::{unwrap_v8_local, PropertyKey, V8Conv};
 
@@ -24,14 +24,10 @@ pub enum FunctionLength {
     Variadic,
 }
 
-#[derive(Debug, Default, Clone, Copy, FromMeta)]
+#[derive(Debug, Clone, Copy)]
 pub enum FunctionThis {
-    #[default]
-    #[darling(rename = "self")]
     Self_,
-    #[darling(rename = "undefined")]
-    Undefined,
-    #[darling(rename = "unbound")]
+    Undefined { this: Span, undefined: Span },
     Unbound,
 }
 
@@ -88,10 +84,14 @@ impl ToTokens for BindFunction {
                     .context("failed to cast `self` as a v8::Object")?;
                 object.cast::<v8::Value>()
             }}),
-            FunctionThis::Undefined => Some(quote! {{
-                let this = v8::undefined(scope);
-                this.cast::<v8::Value>()
-            }}),
+            FunctionThis::Undefined { this, undefined } => {
+                let this = Ident::new("this", this);
+                let undefined = Ident::new("undefined", undefined);
+                Some(quote! {{
+                    let #this = v8::#undefined(scope);
+                    #this.cast::<v8::Value>()
+                }})
+            }
             FunctionThis::Unbound => None,
         };
 

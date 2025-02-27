@@ -11,8 +11,7 @@ use tap::Pipe;
 use crate::{
     util::{
         only_impl_fn, only_inherent_impl, use_deno, use_prelude, Caveat, ErrorLocation,
-        FatalErrors, FlagEnum, FlagLike, FlagName, FunctionThis, PropertyKey, StringLike, Unary,
-        WellKnown,
+        FatalErrors, FlagEnum, FlagLike, FlagName, PropertyKey, StringLike, Unary, WellKnown,
     },
     Properties,
 };
@@ -48,8 +47,6 @@ struct Function {
     name: Option<Unary<PropKeyString>>,
     #[darling(rename = "Symbol")]
     symbol: Option<Unary<PropKeySymbol>>,
-    #[darling(default)]
-    this: FunctionThis,
 }
 
 #[derive(Debug, Default, Clone, FromMeta)]

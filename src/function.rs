@@ -10,7 +10,7 @@ use tap::Pipe;
 use crate::{
     util::{
         expect_self_arg, only_impl_fn, only_inherent_impl, use_deno, use_prelude, CallFunction,
-        FatalErrors, FlagName, FunctionSource, FunctionThis, RecoverableErrors,
+        FatalErrors, FlagName, FunctionSource, RecoverableErrors,
     },
     Function, JsItem,
 };
@@ -125,7 +125,6 @@ fn impl_call(
     let mut call = CallFunction::from_sig(&mut sig).and_recover(&mut errors);
 
     call.source = FunctionSource::This;
-    call.this = FunctionThis::Undefined;
 
     let fn_self = errors.handle(expect_self_arg(&sig.inputs, &sig.ident));
 

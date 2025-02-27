@@ -2,8 +2,9 @@ use darling::Error;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
-    token::Paren, Expr, FnArg, Generics, Ident, Pat, PatIdent, PatRange, RangeLimits, Receiver,
-    ReturnType, Signature, Token, Type, TypeTuple,
+    spanned::Spanned, token::Paren, Expr, ExprPath, FnArg, Generics, Ident, Pat, PatIdent,
+    PatRange, PatType, Path, RangeLimits, Receiver, ReturnType, Signature, Token, Type, TypePath,
+    TypeTuple,
 };
 use tap::{Pipe, Tap};
 
@@ -224,10 +225,14 @@ impl CallFunction {
 
         let mut inputs = Vec::<FunctionInput>::new();
 
+        let mut this = FunctionThis::Self_;
+
         sig.inputs = std::mem::take(&mut sig.inputs)
             .into_iter()
-            .map(|arg| {
-                let FnArg::Typed(arg) = arg else { return arg };
+            .filter_map(|arg| {
+                let FnArg::Typed(arg) = arg else {
+                    return Some(arg);
+                };
 
                 let ty = V8Conv::from_type((*arg.ty).clone()).and_recover(&mut errors);
 
@@ -239,11 +244,21 @@ impl CallFunction {
                         subpat: None,
                         ..
                     }) => {
+                        if ident == "this" {
+                            if let Some(undefined) = is_undefined(&arg) {
+                                this = undefined;
+                                return None;
+                            } else {
+                                this = FunctionThis::Unbound
+                            }
+                        }
+
                         let spread = false;
                         let ident = ident.clone();
                         let arg = arg.tap_mut(|arg| arg.ty = ty.to_type().into());
+
                         inputs.push(FunctionInput { ident, ty, spread });
-                        FnArg::Typed(arg)
+                        Some(FnArg::Typed(arg))
                     }
 
                     Pat::Range(PatRange {
@@ -252,11 +267,7 @@ impl CallFunction {
                         limits: RangeLimits::HalfOpen(..),
                         ..
                     }) => match &**end {
-                        Expr::Path(path)
-                            if path.path.segments.len() == 1
-                                && path.path.leading_colon.is_none()
-                                && path.qself.is_none() =>
-                        {
+                        Expr::Path(path) if is_unit_path(path) => {
                             let spread = true;
                             let ident = path.path.segments[0].ident.clone();
                             let arg = arg.tap_mut(|arg| {
@@ -271,14 +282,14 @@ impl CallFunction {
                                 arg.ty = ty.to_type().into();
                             });
                             inputs.push(FunctionInput { ident, ty, spread });
-                            FnArg::Typed(arg)
+                            Some(FnArg::Typed(arg))
                         }
                         expr => {
                             "spread argument should be written as `..name`\nfound extra patterns"
                                 .pipe(Error::custom)
                                 .with_span(expr)
                                 .pipe(|e| errors.push(e));
-                            FnArg::Typed(arg)
+                            Some(FnArg::Typed(arg))
                         }
                     },
 
@@ -290,14 +301,14 @@ impl CallFunction {
                             .pipe(Error::custom)
                             .with_span(start)
                             .pipe(|e| errors.push(e));
-                        FnArg::Typed(arg)
+                        Some(FnArg::Typed(arg))
                     }
 
                     ref pat => {
                         Error::custom("expected an identifier or spread argument")
                             .with_span(pat)
                             .pipe(|e| errors.push(e));
-                        FnArg::Typed(arg)
+                        Some(FnArg::Typed(arg))
                     }
                 }
             })
@@ -309,8 +320,6 @@ impl CallFunction {
         };
 
         let source = sig.ident.to_string().into();
-
-        let this = FunctionThis::Self_;
 
         let output = match &sig.output {
             ReturnType::Default => None,
@@ -404,4 +413,29 @@ impl ToTokens for FunctionInput {
         let Self { ident, ty, .. } = self;
         tokens.extend(quote! { #ident: #ty });
     }
+}
+
+#[inline(always)]
+fn is_undefined(arg: &PatType) -> Option<FunctionThis> {
+    let Type::Path(TypePath {
+        qself: None,
+        path: Path {
+            leading_colon: None,
+            ref segments,
+        },
+    }) = &*arg.ty
+    else {
+        return None;
+    };
+    if segments.len() != 1 || segments[0].ident != "undefined" || !segments[0].arguments.is_none() {
+        return None;
+    }
+    let this = arg.pat.span();
+    let undefined = arg.ty.span();
+    Some(FunctionThis::Undefined { this, undefined })
+}
+
+#[inline(always)]
+fn is_unit_path(path: &ExprPath) -> bool {
+    path.path.segments.len() == 1 && path.path.leading_colon.is_none() && path.qself.is_none()
 }
