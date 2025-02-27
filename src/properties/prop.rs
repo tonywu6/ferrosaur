@@ -5,10 +5,11 @@ use syn::{Generics, Signature};
 use tap::Pipe;
 
 use crate::util::{
-    only_explicit_return_type, FunctionIntent, NewtypeMeta, RecoverableErrors, V8Conv,
+    expect_self_arg, only_explicit_return_type, FunctionIntent, NewtypeMeta, RecoverableErrors,
+    V8Conv,
 };
 
-use super::{self_arg, Property, ResolveName};
+use super::{Property, ResolveName};
 
 pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>> {
     let mut errors = Error::accumulator();
@@ -17,19 +18,17 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
 
     let Signature {
         ident,
-        generics,
+        generics: Generics {
+            params,
+            where_clause,
+            ..
+        },
         inputs,
         output,
         ..
     } = sig;
 
-    let Generics {
-        params,
-        where_clause,
-        ..
-    } = generics;
-
-    let self_arg = errors.handle(self_arg(&inputs, &ident));
+    let self_arg = errors.handle(expect_self_arg(&inputs, &ident));
 
     errors.handle(only_explicit_return_type(&output, &ident));
 

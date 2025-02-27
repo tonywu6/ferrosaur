@@ -4,7 +4,7 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
     punctuated::Punctuated, spanned::Spanned, token::Paren, FnArg, Generics, Ident, ImplItem,
-    ImplItemFn, ItemImpl, Pat, PatIdent, PatType, Path, PathSegment, ReturnType, Token,
+    ImplItemFn, ItemImpl, Pat, PatIdent, PatType, Path, PathSegment, Receiver, ReturnType, Token,
     VisRestricted, Visibility,
 };
 use tap::{Conv, Pipe, Tap};
@@ -19,7 +19,7 @@ mod v8_conv;
 pub mod v8_conv_impl;
 
 pub use self::{
-    bind_function::{BindFunction, FunctionLength, FunctionThis},
+    bind_function::{BindFunction, FunctionLength, FunctionSource, FunctionThis},
     call_function::{CallFunction, FunctionIntent},
     flag_like::{FlagEnum, FlagLike, FlagName},
     property_key::{PropertyKey, WellKnown},
@@ -204,7 +204,7 @@ pub fn inner_mod_name<T: ToTokens>(prefix: &str, item: T) -> Ident {
         .pipe_as_ref(|name| Ident::new(name, item.span()))
 }
 
-pub fn only_inherent_impl<F: FlagName>(item: &ItemImpl) -> Result<()> {
+pub fn only_inherent_impl(item: &ItemImpl) -> Result<()> {
     let mut errors = Error::accumulator();
 
     if item.defaultness.is_some() {
@@ -228,7 +228,7 @@ pub fn only_inherent_impl<F: FlagName>(item: &ItemImpl) -> Result<()> {
     errors.finish()
 }
 
-pub fn only_fn_item(item: ImplItem) -> Result<ImplItemFn> {
+pub fn only_impl_fn(item: ImplItem) -> Result<ImplItemFn> {
     if let ImplItem::Fn(func) = item {
         Ok(func)
     } else {
@@ -236,6 +236,27 @@ pub fn only_fn_item(item: ImplItem) -> Result<ImplItemFn> {
             .pipe(Error::custom)
             .with_span(&item)
             .pipe(Err)
+    }
+}
+
+pub fn expect_self_arg<'a>(
+    inputs: &'a Punctuated<FnArg, Token![,]>,
+    ident: &Ident,
+) -> Result<&'a Receiver> {
+    match inputs.first() {
+        Some(FnArg::Receiver(recv)) => {
+            if recv.reference.is_none() || recv.mutability.is_some() {
+                Error::custom("must be `&self`").with_span(recv).pipe(Err)
+            } else {
+                Ok(recv)
+            }
+        }
+        Some(FnArg::Typed(ty)) => Error::custom("must have `&self` as the first argument")
+            .with_span(ty)
+            .pipe(Err),
+        None => Error::custom("missing `&self` as the first argument")
+            .with_span(ident)
+            .pipe(Err),
     }
 }
 
@@ -328,32 +349,48 @@ pub fn unwrap_v8_local(name: &str) -> TokenStream {
     }}
 }
 
-pub fn use_prelude() -> TokenStream {
-    quote! {
-        extern crate alloc as _alloc;
-        #[allow(unused)]
-        use ::core::{
-            convert::{AsRef, From, Infallible, Into},
-            default::Default,
-            marker::{Send, Sync},
-            option::Option::{self, None, Some},
-            result::Result::{Err, Ok},
-        };
-        #[allow(unused)]
-        use _alloc::vec::Vec;
+#[allow(
+    non_camel_case_types,
+    reason = "this is only used like a unit value in quote! {}"
+)]
+pub struct use_prelude;
+
+impl ToTokens for use_prelude {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(quote! {
+            extern crate alloc as _alloc;
+            #[allow(unused)]
+            use ::core::{
+                convert::{AsRef, From, Infallible, Into},
+                default::Default,
+                marker::{Send, Sync},
+                option::Option::{self, None, Some},
+                result::Result::{Err, Ok},
+            };
+            #[allow(unused)]
+            use _alloc::vec::Vec;
+        });
     }
 }
 
-pub fn use_deno() -> TokenStream {
-    quote! {
-        #[allow(unused)]
-        use deno_core::{
-            anyhow::{anyhow, Context, Result},
-            ascii_str,
-            convert::{FromV8, ToV8},
-            error::JsError,
-            serde_v8, v8, FastString, JsRuntime,
-        };
+#[allow(
+    non_camel_case_types,
+    reason = "this is only used like a unit value in quote! {}"
+)]
+pub struct use_deno;
+
+impl ToTokens for use_deno {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.extend(quote! {
+            #[allow(unused)]
+            use deno_core::{
+                anyhow::{anyhow, Context, Result},
+                ascii_str,
+                convert::{FromV8, ToV8},
+                error::JsError,
+                serde_v8, v8, FastString, JsRuntime,
+            };
+        });
     }
 }
 

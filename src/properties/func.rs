@@ -4,11 +4,11 @@ use syn::{spanned::Spanned, Signature, Type};
 use tap::Pipe;
 
 use crate::util::{
-    only_pat_ident, CallFunction, Caveat, FunctionIntent, FunctionThis, MergeErrors, NewtypeMeta,
-    PropertyKey, RecoverableErrors,
+    expect_self_arg, only_pat_ident, CallFunction, Caveat, FunctionIntent, FunctionThis,
+    MergeErrors, NewtypeMeta, PropertyKey, RecoverableErrors,
 };
 
-use super::{property_key, self_arg, Constructor, Function, ResolveName};
+use super::{property_key, Constructor, Function, ResolveName};
 
 pub enum Callable {
     Func(Function),
@@ -18,14 +18,14 @@ pub enum Callable {
 pub fn impl_function(call: Callable, mut sig: Signature) -> Result<Vec<TokenStream>> {
     let mut errors = Error::accumulator();
 
-    let fn_self = errors.handle(self_arg(&sig.inputs, &sig.ident)).cloned();
-
     let call = match call {
         Callable::Func(func) => func_to_call(func, &mut sig).and_recover(&mut errors),
         Callable::Ctor(ctor) => ctor_to_call(ctor, &mut sig).and_recover(&mut errors),
     };
 
-    let impl_ = call.render(fn_self.as_ref(), &sig.ident, &sig.generics);
+    let fn_self = errors.handle(expect_self_arg(&sig.inputs, &sig.ident));
+
+    let impl_ = call.render(fn_self, &sig.ident, &sig.generics);
 
     errors.finish()?;
 

@@ -8,6 +8,7 @@ use syn::{parse_macro_input, Lit, LitStr, Meta};
 use util::ErrorLocation;
 
 mod fast_string;
+mod function;
 mod global_this;
 mod iterator;
 mod module;
@@ -41,6 +42,9 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
         JsItem::Properties(FlagLike(properties)) => {
             properties::properties(properties, item).error_at::<JsItem, Properties>()
         }
+        JsItem::Function(FlagLike(function)) => {
+            function::function(function, item).error_at::<JsItem, Function>()
+        }
         JsItem::Iterator(FlagLike(iterator)) => {
             iterator::iterator(iterator, item).error_at::<JsItem, Iterator_>()
         }
@@ -57,6 +61,7 @@ enum JsItem {
     GlobalThis(FlagLike<GlobalThis>),
     Value(FlagLike<Value>),
     Properties(FlagLike<Properties>),
+    Function(FlagLike<Function>),
     Iterator(FlagLike<Iterator_>),
 }
 
@@ -94,6 +99,9 @@ struct Value {
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Properties;
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Function;
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Iterator_;
@@ -192,6 +200,14 @@ impl FlagName for Value {
 
 impl FlagName for Properties {
     const PREFIX: &'static str = "properties";
+
+    fn unit() -> Result<Self> {
+        Ok(Self)
+    }
+}
+
+impl FlagName for Function {
+    const PREFIX: &'static str = "function";
 
     fn unit() -> Result<Self> {
         Ok(Self)

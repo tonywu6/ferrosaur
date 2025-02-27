@@ -4,14 +4,13 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
     parse::{Parse, Parser},
-    punctuated::Punctuated,
-    FnArg, Generics, Ident, ImplItem, ImplItemFn, ItemImpl, Receiver, Token,
+    Generics, Ident, ImplItem, ImplItemFn, ItemImpl,
 };
 use tap::Pipe;
 
 use crate::{
     util::{
-        only_fn_item, only_inherent_impl, use_deno, use_prelude, Caveat, ErrorLocation,
+        only_impl_fn, only_inherent_impl, use_deno, use_prelude, Caveat, ErrorLocation,
         FatalErrors, FlagEnum, FlagLike, FlagName, FunctionThis, PropertyKey, StringLike, Unary,
         WellKnown,
     },
@@ -69,30 +68,24 @@ pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
 
     let (item, mut errors) = ItemImpl::parse.parse2(item).or_fatal(errors)?;
 
-    errors.handle(only_inherent_impl::<Properties>(&item));
+    errors.handle(only_inherent_impl(&item));
 
     let ItemImpl {
         attrs,
-        generics,
+        generics: Generics {
+            params,
+            where_clause,
+            ..
+        },
         self_ty,
         items,
         ..
     } = item;
 
-    let Generics {
-        params,
-        where_clause,
-        ..
-    } = generics;
-
     let items = items
         .into_iter()
         .filter_map(|item| errors.handle(impl_item(item)))
         .collect::<Vec<_>>();
-
-    let use_prelude = use_prelude();
-
-    let use_deno = use_deno();
 
     errors.finish()?;
 
@@ -101,6 +94,7 @@ pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
             #use_prelude
             #use_deno
 
+            #[automatically_derived]
             #(#attrs)*
             impl <#params> #self_ty
             #where_clause
@@ -112,7 +106,7 @@ pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
 }
 
 fn impl_item(item: ImplItem) -> Result<TokenStream> {
-    let func = only_fn_item(item)?;
+    let func = only_impl_fn(item)?;
 
     let mut errors = Error::accumulator();
 
@@ -169,24 +163,6 @@ fn impl_item(item: ImplItem) -> Result<TokenStream> {
         .map(|impl_| quote! { #(#attrs)* #vis #impl_ });
 
     Ok(quote! { #(#impl_)* })
-}
-
-fn self_arg<'a>(inputs: &'a Punctuated<FnArg, Token![,]>, ident: &Ident) -> Result<&'a Receiver> {
-    match inputs.first() {
-        Some(FnArg::Receiver(recv)) => {
-            if recv.reference.is_none() || recv.mutability.is_some() {
-                Error::custom("must be `&self`").with_span(recv).pipe(Err)
-            } else {
-                Ok(recv)
-            }
-        }
-        Some(FnArg::Typed(ty)) => Error::custom("must have `&self` as the first argument")
-            .with_span(ty)
-            .pipe(Err),
-        None => Error::custom("missing `&self` as the first argument")
-            .with_span(ident)
-            .pipe(Err),
-    }
 }
 
 fn property_key(src: &Ident, alt: Option<PropertyKey>) -> PropertyKey {

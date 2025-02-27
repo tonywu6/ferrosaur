@@ -1,4 +1,6 @@
-use anyhow::{Context, Result};
+use std::path::Path;
+
+use anyhow::Result;
 use deno_core::{JsRuntime, RuntimeOptions};
 use deno_web::TimersPermission;
 use tap::Tap;
@@ -35,26 +37,10 @@ impl TimersPermission for Permissions {
 pub fn with_portable_snapshot<T: FnOnce()>(file_macro: &'static str, cb: T) -> Result<()> {
     let test_file = file_macro.parse::<std::path::PathBuf>()?;
 
-    let test_dir = test_file
-        .parent()
-        .context("while resolving test directory")?
-        .to_str()
-        .context("while converting path to string")?;
+    let test_dir = Path::new("snapshots").join(test_file.with_extension("").file_name().unwrap());
 
     insta::Settings::clone_current()
-        .tap_mut(|settings| {
-            settings.set_snapshot_path(
-                test_file
-                    .with_extension("")
-                    .join("snapshots")
-                    .to_str()
-                    .unwrap()
-                    .strip_prefix(test_dir)
-                    .unwrap()
-                    .strip_prefix("/")
-                    .unwrap(),
-            )
-        })
+        .tap_mut(|settings| settings.set_snapshot_path(test_dir))
         .tap_mut(|settings| settings.set_prepend_module_to_snapshot(false))
         .bind(cb);
 

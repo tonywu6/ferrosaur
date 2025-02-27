@@ -20,21 +20,19 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
 
     let (item, mut errors) = ItemImpl::parse.parse2(item).or_fatal(errors)?;
 
-    errors.handle(only_inherent_impl::<Iterator_>(&item));
+    errors.handle(only_inherent_impl(&item));
 
     let ItemImpl {
         attrs,
-        generics,
+        generics: Generics {
+            params,
+            where_clause,
+            ..
+        },
         self_ty,
         items,
         ..
     } = item;
-
-    let Generics {
-        params,
-        where_clause,
-        ..
-    } = generics;
 
     let item_type = items
         .into_iter()
@@ -42,7 +40,7 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
         .collect::<Vec<_>>();
 
     let item_type = match item_type.len() {
-        0 => V8Conv::default(),
+        0 => V8Conv::default(), // TODO: make this mandatory
         1 => item_type.into_iter().next().unwrap().0,
         _ => {
             let mut item_type = item_type.into_iter();
@@ -135,9 +133,6 @@ pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
             }
         }
     };
-
-    let use_prelude = use_prelude();
-    let use_deno = use_deno();
 
     errors.finish()?;
 

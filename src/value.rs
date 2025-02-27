@@ -61,9 +61,6 @@ pub fn value(value: Value, item: TokenStream) -> Result<TokenStream> {
 
     let inner_mod = inner_mod_name("value", &ident);
 
-    let use_prelude = use_prelude();
-    let use_deno = use_deno();
-
     errors.finish()?;
 
     Ok(quote! {

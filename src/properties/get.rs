@@ -4,12 +4,9 @@ use quote::quote;
 use syn::{Generics, Signature};
 use tap::Pipe;
 
-use crate::{
-    properties::self_arg,
-    util::{
-        only_explicit_return_type, only_pat_ident, FatalErrors, FunctionIntent, RecoverableErrors,
-        V8Conv,
-    },
+use crate::util::{
+    expect_self_arg, only_explicit_return_type, only_pat_ident, FatalErrors, FunctionIntent,
+    RecoverableErrors, V8Conv,
 };
 
 use super::Getter;
@@ -21,19 +18,17 @@ pub fn impl_getter(_: Getter, sig: Signature) -> Result<Vec<TokenStream>> {
 
     let Signature {
         ident,
-        generics,
+        generics: Generics {
+            params,
+            where_clause,
+            ..
+        },
         inputs,
         output,
         ..
     } = sig;
 
-    let Generics {
-        params,
-        where_clause,
-        ..
-    } = generics;
-
-    let self_arg = errors.handle(self_arg(&inputs, &ident));
+    let self_arg = errors.handle(expect_self_arg(&inputs, &ident));
 
     errors.handle(only_explicit_return_type(&output, &ident));
 

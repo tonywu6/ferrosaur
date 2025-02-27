@@ -1,3 +1,8 @@
+export const sleep = (v, ms) =>
+  new Promise((resolve) => setTimeout(() => resolve(v), ms));
+
+export const useNavigate = () => (path) => console.log("navigating to", path);
+
 export class Rectangle {
   constructor(width, height) {
     this.width = width;
@@ -24,17 +29,8 @@ export class Rectangle {
   }
 }
 
-export class Square extends Rectangle {
-  constructor(side) {
-    super(side, side);
-  }
-}
-
 export class ThisConsideredHarmful {
   whoami() {
     return this;
   }
 }
-
-export const sleep = (v, ms) =>
-  new Promise((resolve) => setTimeout(() => resolve(v), ms));

@@ -57,6 +57,11 @@ impl ToTokens for BindFunction {
             }
         };
 
+        let object_ty = match &self.source {
+            FunctionSource::Prop(_) => quote! { v8::Object },
+            FunctionSource::This => quote! { v8::Function },
+        };
+
         let get_bind = {
             let getter = func.to_getter();
             let prop = PropertyKey::from("bind");
@@ -148,13 +153,13 @@ impl ToTokens for BindFunction {
             #[inline(always)]
             fn call<'a, T>(
                 scope: &mut v8::HandleScope<'a>,
-                object: T,
+                object: v8::Local<'a, T>,
                 #[allow(unused)]
                 args: #args_ty,
             ) -> Result<v8::Global<v8::Value>>
             where
-                T: TryInto<v8::Local<'a, v8::Object>> + Copy,
-                T::Error: std::error::Error + Send + Sync + 'static,
+                v8::Local<'a, T>: TryInto<v8::Local<'a, #object_ty>,
+                    Error: ::core::error::Error + Send + Sync + 'static>,
             {
                 let func = #get_func;
                 let bind = {

@@ -36,14 +36,17 @@ pub struct Main;
 
 #[js(properties)]
 impl Main {
+    #[js(func)]
+    pub async fn sleep(&self, value: bool, ms: serde<usize>) -> bool {}
+
+    #[js(func)]
+    pub fn use_navigate(&self) -> NavigateFn {}
+
     #[js(new)]
     pub fn rectangle(&self, w: serde<f64>, h: serde<f64>) -> Rectangle {}
 
     #[js(new(class(ThisConsideredHarmful)))]
     pub fn this_checker(&self) -> ThisChecker {}
-
-    #[js(func)]
-    pub async fn sleep(&self, value: bool, ms: serde<usize>) -> bool {}
 }
 
 #[js(value)]
@@ -79,7 +82,15 @@ impl ThisChecker {
     pub fn get_undefined(&self) -> v8::Global<v8::Value> {}
 
     #[js(func(name(whoami), this(unbound)))]
-    pub fn get_unbound(&self, this: v8::Global<v8::Object>) -> v8::Global<v8::Value> {}
+    pub fn get_unbound(&self, this: v8::Global<v8::Value>) -> v8::Global<v8::Value> {}
+}
+
+#[js(value(expect(v8::Function)))]
+struct NavigateFn;
+
+#[js(function)]
+impl NavigateFn {
+    pub fn call(&self, path: serde<&str>) {}
 }
 
 #[js(module(import("js/i18n.js"), side_module))]

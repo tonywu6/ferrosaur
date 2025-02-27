@@ -10,7 +10,7 @@ mod util;
 
 use crate::{
     compile::{Global, I18n, Main},
-    util::deno,
+    util::{deno, with_portable_snapshot},
 };
 
 #[tokio::test]
@@ -43,7 +43,7 @@ async fn test_this() -> Result<()> {
     let checker = main.this_checker(rt)?;
 
     let this_1 = checker.get_this(rt)?;
-    let this_2 = checker.get_unbound(main.as_ref().clone(), rt)?;
+    let this_2 = checker.get_unbound(main.try_cast_global(rt)?, rt)?;
     let this_3 = checker.get_undefined(rt)?;
 
     {
@@ -79,50 +79,12 @@ async fn test_promise() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_variadic_fn() -> Result<()> {
-    let rt = &mut deno().await?;
-
-    let global = Global::new(rt);
-
-    global.console(rt)?.log(
-        &[
-            global.number(0.0, rt)?,
-            global.boolean(true, rt)?,
-            global.string("2", rt)?,
-            global.date(3.0, rt)?,
-        ],
-        rt,
-    )?;
-
-    let stdout = global.cargo_test_stdout(rt)?;
-
-    insta::assert_snapshot!(stdout);
-
-    Ok(())
-}
-
-#[js(properties)]
-impl Global {
-    #[js(func(name(Boolean)))]
-    fn boolean(&self, v: serde<bool>) -> v8::Global<v8::Value> {}
-
-    #[js(func(name(Number)))]
-    fn number(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
-
-    #[js(func(name(String)))]
-    fn string(&self, v: serde<&str>) -> v8::Global<v8::Value> {}
-
-    #[js(new(class(Date)))]
-    fn date(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
-}
-
-#[tokio::test]
 async fn test_indexing_get() -> Result<()> {
     let rt = &mut deno().await?;
 
     let i18n = I18n::new(rt).await?;
 
-    assert_eq!("https://zh.wikipedia.org/wiki/千字文", i18n.zh_cn(rt)?);
+    assert_eq!(i18n.zh_cn(rt)?, "https://zh.wikipedia.org/wiki/千字文");
 
     assert_eq!(
         i18n.i18n(
@@ -153,4 +115,58 @@ async fn test_indexing_set() -> Result<()> {
     };
 
     Ok(())
+}
+
+#[tokio::test]
+async fn test_callback() -> Result<()> {
+    let rt = &mut deno().await?;
+
+    let main = Main::new(rt).await?;
+    let global = Global::new(rt);
+
+    main.use_navigate(rt)?.call("https://example.org", rt)?;
+
+    let stdout = global.cargo_test_stdout(rt)?;
+
+    with_portable_snapshot(file!(), || insta::assert_snapshot!(stdout))?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_variadic_fn() -> Result<()> {
+    let rt = &mut deno().await?;
+
+    let global = Global::new(rt);
+
+    global.console(rt)?.log(
+        &[
+            global.number(0.0, rt)?,
+            global.boolean(true, rt)?,
+            global.string("2", rt)?,
+            global.date(3.0, rt)?,
+        ],
+        rt,
+    )?;
+
+    let stdout = global.cargo_test_stdout(rt)?;
+
+    with_portable_snapshot(file!(), || insta::assert_snapshot!(stdout))?;
+
+    Ok(())
+}
+
+#[js(properties)]
+impl Global {
+    #[js(func(name(Boolean)))]
+    fn boolean(&self, v: serde<bool>) -> v8::Global<v8::Value> {}
+
+    #[js(func(name(Number)))]
+    fn number(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
+
+    #[js(func(name(String)))]
+    fn string(&self, v: serde<&str>) -> v8::Global<v8::Value> {}
+
+    #[js(new(class(Date)))]
+    fn date(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
 }

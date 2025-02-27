@@ -4,9 +4,11 @@ use quote::quote;
 use syn::{Generics, ReturnType, Signature};
 use tap::Pipe;
 
-use crate::util::{only_pat_ident, FatalErrors, FunctionIntent, RecoverableErrors, V8Conv};
+use crate::util::{
+    expect_self_arg, only_pat_ident, FatalErrors, FunctionIntent, RecoverableErrors, V8Conv,
+};
 
-use super::{self_arg, Setter};
+use super::Setter;
 
 pub fn impl_setter(_: Setter, sig: Signature) -> Result<Vec<TokenStream>> {
     let mut errors = Error::accumulator();
@@ -15,19 +17,17 @@ pub fn impl_setter(_: Setter, sig: Signature) -> Result<Vec<TokenStream>> {
 
     let Signature {
         ident,
-        generics,
+        generics: Generics {
+            params,
+            where_clause,
+            ..
+        },
         inputs,
         output,
         ..
     } = sig;
 
-    let Generics {
-        params,
-        where_clause,
-        ..
-    } = generics;
-
-    let self_arg = errors.handle(self_arg(&inputs, &ident));
+    let self_arg = errors.handle(expect_self_arg(&inputs, &ident));
 
     errors.handle(if matches!(output, ReturnType::Default) {
         Ok(())

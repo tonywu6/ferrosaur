@@ -9,7 +9,7 @@ use syn::{
 use crate::{
     util::{
         inner_mod_name, use_prelude,
-        v8_conv_impl::{impl_as_ref_inner, impl_from_inner, impl_global_cast, impl_to_v8},
+        v8_conv_impl::{impl_as_ref_inner, impl_global_cast, impl_to_v8},
         FatalErrors, NoGenerics, Unary,
     },
     FastString, ImportMetaUrl, Module,
@@ -41,8 +41,6 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
         side_module,
         fast,
     } = module;
-
-    let use_prelude = use_prelude();
 
     let uses = quote! {
         #[allow(unused)]
@@ -146,7 +144,6 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
     };
 
     let impl_as_ref = impl_as_ref_inner(&item_ty, &ident);
-    let impl_from = impl_from_inner(&item_ty, &ident);
 
     let inner_ty = quote! { v8::Object };
 
@@ -205,7 +202,6 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
             }
 
             #impl_as_ref
-            #impl_from
             #impl_to_v8
         }
     })

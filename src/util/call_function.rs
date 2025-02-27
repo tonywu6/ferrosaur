@@ -47,17 +47,15 @@ impl CallFunction {
         let asyncness = intent;
 
         let error_ctx = {
-            let dbg_name = match &self.source {
-                FunctionSource::Prop(prop) => &format!(" {prop:?}"),
-                FunctionSource::This => "",
-            };
             match self.intent {
-                FunctionIntent::Called | FunctionIntent::Awaited(_) => {
-                    format!("failed to call function {dbg_name}")
-                }
-                FunctionIntent::Constructed => {
-                    format!("failed to construct {dbg_name}")
-                }
+                FunctionIntent::Called | FunctionIntent::Awaited(_) => match &self.source {
+                    FunctionSource::Prop(prop) => format!("failed to call function {prop:?}"),
+                    FunctionSource::This => "failed to call function".into(),
+                },
+                FunctionIntent::Constructed => match &self.source {
+                    FunctionSource::Prop(prop) => format!("failed to construct {prop:?}"),
+                    FunctionSource::This => "failed to construct".into(),
+                },
             }
         };
 

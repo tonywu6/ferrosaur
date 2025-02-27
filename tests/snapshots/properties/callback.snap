@@ -1,0 +1,5 @@
+---
+source: tests/properties.rs
+expression: stdout
+---
+navigating to https://example.org
