@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use deno_bindgen3::js;
 use deno_core::v8;
+use ferrosaur::js;
 use serde_json::json;
 
 mod compile;

@@ -1,5 +1,5 @@
-use deno_bindgen3::js;
 use deno_core::convert::OptionNull;
+use ferrosaur::js;
 
 #[js(global_this)]
 pub struct Global;
