@@ -4,14 +4,16 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
     parse::{Parse, Parser},
-    Generics, Ident, ImplItem, ImplItemFn, ItemImpl,
+    spanned::Spanned,
+    Ident, ImplItemFn, ImplItemType, TraitItemFn, TraitItemType, Visibility,
 };
 use tap::Pipe;
 
 use crate::{
     util::{
-        only_impl_fn, only_inherent_impl, use_deno, use_prelude, Caveat, ErrorLocation,
-        FatalErrors, FlagEnum, FlagLike, FlagName, PropertyKey, StringLike, Unary, WellKnown,
+        no_default_fn, no_fn_body, Caveat, DeriveInterface, ErrorLocation, FatalErrors, FlagEnum,
+        FlagLike, FlagName, InterfaceLike, OuterType, PropertyKey, SomeFunc, SomeType, StringLike,
+        Unary, WellKnown,
     },
     Properties,
 };
@@ -61,105 +63,103 @@ struct Constructor {
 }
 
 pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
-    let errors = Error::accumulator();
-
-    let (item, mut errors) = ItemImpl::parse.parse2(item).or_fatal(errors)?;
-
-    errors.handle(only_inherent_impl(&item));
-
-    let ItemImpl {
-        attrs,
-        generics: Generics {
-            params,
-            where_clause,
-            ..
-        },
-        self_ty,
-        items,
-        ..
-    } = item;
-
-    let items = items
-        .into_iter()
-        .filter_map(|item| errors.handle(impl_item(item)))
-        .collect::<Vec<_>>();
-
-    errors.finish()?;
-
-    Ok(quote! {
-        const _: () = {
-            #use_prelude
-            #use_deno
-
-            #[automatically_derived]
-            #(#attrs)*
-            impl <#params> #self_ty
-            #where_clause
-            {
-                #(#items)*
-            }
-        };
-    })
+    InterfaceLike::parse
+        .parse2(item)?
+        .derive::<DeriveProperties>()
 }
 
-fn impl_item(item: ImplItem) -> Result<TokenStream> {
-    let func = only_impl_fn(item)?;
+struct DeriveProperties;
 
-    let mut errors = Error::accumulator();
+impl DeriveInterface for DeriveProperties {
+    fn impl_func(item: ImplItemFn) -> Result<SomeFunc> {
+        let ImplItemFn {
+            attrs,
+            vis,
+            defaultness,
+            sig,
+            block,
+        } = item;
 
-    let ImplItemFn {
-        attrs,
-        vis,
-        defaultness,
-        sig,
-        block,
-    } = func;
+        let mut errors = Error::accumulator();
 
-    errors.handle(if !block.stmts.is_empty() {
-        Error::custom("macro ignores fn body\nchange this to {}")
-            .with_span(&block)
-            .pipe(Err)
-    } else {
-        Ok(())
-    });
+        errors.handle(no_fn_body(Some(block)));
+        errors.handle(no_default_fn(defaultness));
 
-    errors.handle(if defaultness.is_some() {
-        Error::custom("fn cannot be `default` here")
-            .with_span(&defaultness)
-            .pipe(Err)
-    } else {
-        Ok(())
-    });
-
-    let ((FlagLike(prop), attrs), errors) =
-        FlagLike::<JsProperty>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
-
-    let (impl_, errors) = match prop {
-        JsProperty::Prop(FlagLike(prop)) => {
-            prop::impl_property(prop, sig).error_at::<JsProperty, Property>()
-        }
-        JsProperty::Func(FlagLike(func)) => {
-            func::impl_function(func.into(), sig).error_at::<JsProperty, Function>()
-        }
-        JsProperty::New(FlagLike(ctor)) => {
-            func::impl_function(ctor.into(), sig).error_at::<JsProperty, Constructor>()
-        }
-        JsProperty::Get(FlagLike(getter)) => {
-            get::impl_getter(getter, sig).error_at::<JsProperty, Getter>()
-        }
-        JsProperty::Set(FlagLike(setter)) => {
-            set::impl_setter(setter, sig).error_at::<JsProperty, Setter>()
-        }
+        errors.finish_with(SomeFunc { attrs, vis, sig })
     }
-    .or_fatal(errors)?;
 
-    errors.finish()?;
+    fn trait_func(item: TraitItemFn) -> Result<SomeFunc> {
+        let TraitItemFn {
+            attrs,
+            default,
+            sig,
+            ..
+        } = item;
 
-    let impl_ = impl_
-        .into_iter()
-        .map(|impl_| quote! { #(#attrs)* #vis #impl_ });
+        let vis = Visibility::Inherited;
 
-    Ok(quote! { #(#impl_)* })
+        let mut errors = Error::accumulator();
+
+        errors.handle(no_fn_body(default));
+
+        errors.finish_with(SomeFunc { attrs, vis, sig })
+    }
+
+    fn count_items(_: usize, _: usize) -> Result<()> {
+        Ok(())
+    }
+
+    fn derive_func(SomeFunc { attrs, vis, sig }: SomeFunc, _: OuterType) -> Result<TokenStream> {
+        let errors = Error::accumulator();
+
+        let ((FlagLike(prop), attrs), errors) =
+            FlagLike::<JsProperty>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
+
+        let (impl_, errors) = match prop {
+            JsProperty::Prop(FlagLike(prop)) => {
+                prop::impl_property(prop, sig).error_at::<JsProperty, Property>()
+            }
+            JsProperty::Func(FlagLike(func)) => {
+                func::impl_function(func.into(), sig).error_at::<JsProperty, Function>()
+            }
+            JsProperty::New(FlagLike(ctor)) => {
+                func::impl_function(ctor.into(), sig).error_at::<JsProperty, Constructor>()
+            }
+            JsProperty::Get(FlagLike(getter)) => {
+                get::impl_getter(getter, sig).error_at::<JsProperty, Getter>()
+            }
+            JsProperty::Set(FlagLike(setter)) => {
+                set::impl_setter(setter, sig).error_at::<JsProperty, Setter>()
+            }
+        }
+        .or_fatal(errors)?;
+
+        errors.finish()?;
+
+        let impl_ = impl_
+            .into_iter()
+            .map(|impl_| quote! { #(#attrs)* #vis #impl_ });
+
+        Ok(quote! { #(#impl_)* })
+    }
+
+    fn unsupported<T, S: Spanned>(span: S) -> Result<T> {
+        "only fn items are supported\nfn should have an empty body\nmove this item to another impl block"
+        .pipe(Error::custom).with_span(&span)
+        .pipe(Err)
+    }
+
+    fn impl_type(item: ImplItemType) -> Result<SomeType> {
+        Self::unsupported(item)
+    }
+
+    fn trait_type(item: TraitItemType) -> Result<SomeType> {
+        Self::unsupported(item)
+    }
+
+    fn derive_type(item: SomeType, _: OuterType) -> Result<TokenStream> {
+        Self::unsupported(item.ident)
+    }
 }
 
 fn property_key(src: &Ident, alt: Option<PropertyKey>) -> PropertyKey {

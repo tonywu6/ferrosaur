@@ -3,15 +3,16 @@ use heck::ToSnakeCase;
 use proc_macro2::{TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, token::Paren, FnArg, Generics, Ident, ImplItem,
-    ImplItemFn, ItemImpl, Pat, PatIdent, PatType, Path, PathSegment, Receiver, ReturnType, Token,
-    VisRestricted, Visibility,
+    punctuated::Punctuated, spanned::Spanned, token::Paren, Block, FnArg, Generics, Ident,
+    ItemImpl, ItemTrait, Pat, PatIdent, PatType, Path, PathArguments, PathSegment, Receiver,
+    ReturnType, Token, Type, TypePath, VisRestricted, Visibility,
 };
 use tap::{Conv, Pipe, Tap};
 
 mod bind_function;
 mod call_function;
 mod flag_like;
+mod interface_like;
 mod property_key;
 mod string_like;
 mod unary;
@@ -22,10 +23,13 @@ pub use self::{
     bind_function::{BindFunction, FunctionLength, FunctionSource, FunctionThis},
     call_function::{CallFunction, FunctionIntent},
     flag_like::{FlagEnum, FlagLike, FlagName},
+    interface_like::{
+        DeriveInterface, InterfaceLike, OuterType, OuterTypeKind, SomeFunc, SomeType,
+    },
     property_key::{PropertyKey, WellKnown},
     string_like::StringLike,
     unary::Unary,
-    v8_conv::{V8Conv, V8InnerType},
+    v8_conv::{empty_where_clause, to_v8_bound, V8Conv, V8InnerType},
 };
 
 pub trait TokenStreamResult {
@@ -183,25 +187,19 @@ impl FromGenerics for NoGenerics {
     }
 }
 
-pub fn inner_mod_name<T: ToTokens>(prefix: &str, item: T) -> Ident {
-    fn collect_ident(stream: TokenStream, collector: &mut Vec<String>) {
-        for token in stream {
-            match token {
-                TokenTree::Ident(ident) => collector.push(ident.to_string().to_snake_case()),
-                TokenTree::Group(group) => collect_ident(group.stream(), collector),
-                _ => {}
-            }
-        }
-    }
-    let name = {
-        let mut tokens = vec![];
-        collect_ident(item.to_token_stream(), &mut tokens);
-        tokens
-    }
-    .join("_");
-    format!("__bindgen_{prefix}_{name}")
-        .to_lowercase()
-        .pipe_as_ref(|name| Ident::new(name, item.span()))
+pub fn unwrap_v8_local(name: &str) -> TokenStream {
+    let err = format!("{name} is None");
+    let name = format_ident!("{name}");
+    quote! {{
+        let Some(#name) = #name else {
+            return if let Some(exception) = scope.exception() {
+                Err(JsError::from_v8_exception(scope, exception))?
+            } else {
+                Err(anyhow!(#err))
+            };
+        };
+        #name
+    }}
 }
 
 pub fn only_inherent_impl(item: &ItemImpl) -> Result<()> {
@@ -228,14 +226,45 @@ pub fn only_inherent_impl(item: &ItemImpl) -> Result<()> {
     errors.finish()
 }
 
-pub fn only_impl_fn(item: ImplItem) -> Result<ImplItemFn> {
-    if let ImplItem::Fn(func) = item {
-        Ok(func)
-    } else {
-        "only fn items are supported\nfn should have an empty body\nmove this item to another impl block"
-            .pipe(Error::custom)
-            .with_span(&item)
+pub fn only_regular_trait(item: &ItemTrait) -> Result<()> {
+    let mut errors = Error::accumulator();
+
+    if item.unsafety.is_some() {
+        Error::custom("trait cannot be `unsafe`")
+            .with_span(&item.unsafety)
+            .pipe(|e| errors.push(e));
+    }
+
+    if item.auto_token.is_some() {
+        Error::custom("trait cannot be `auto`")
+            .with_span(&item.auto_token)
+            .pipe(|e| errors.push(e));
+    }
+
+    errors.finish()
+}
+
+pub fn no_default_fn(defaultness: Option<Token![default]>) -> Result<()> {
+    if let Some(span) = defaultness {
+        Error::custom("fn cannot be `default` here")
+            .with_span(&span)
             .pipe(Err)
+    } else {
+        Ok(())
+    }
+}
+
+pub fn no_fn_body(block: Option<Block>) -> Result<()> {
+    if let Some(block) = block {
+        if !block.stmts.is_empty() {
+            Error::custom("macro ignores fn body\nchange this to {}")
+                .with_span(&block)
+                .pipe(Err)
+        } else {
+            Ok(())
+        }
+    } else {
+        Ok(())
     }
 }
 
@@ -291,6 +320,40 @@ pub fn only_explicit_return_type(output: &ReturnType, ident: &Ident) -> Result<(
     }
 }
 
+pub fn type_ident(ident: Ident) -> Type {
+    PathSegment {
+        ident,
+        arguments: PathArguments::None,
+    }
+    .pipe(|path| Path {
+        leading_colon: None,
+        segments: std::iter::once(path).collect(),
+    })
+    .pipe(|path| TypePath { qself: None, path })
+    .pipe(Type::Path)
+}
+
+pub fn inner_mod_name<T: ToTokens>(prefix: &str, item: T) -> Ident {
+    fn collect_ident(stream: TokenStream, collector: &mut Vec<String>) {
+        for token in stream {
+            match token {
+                TokenTree::Ident(ident) => collector.push(ident.to_string().to_snake_case()),
+                TokenTree::Group(group) => collect_ident(group.stream(), collector),
+                _ => {}
+            }
+        }
+    }
+    let name = {
+        let mut tokens = vec![];
+        collect_ident(item.to_token_stream(), &mut tokens);
+        tokens
+    }
+    .join("_");
+    format!("__bindgen_{prefix}_{name}")
+        .to_lowercase()
+        .pipe_as_ref(|name| Ident::new(name, item.span()))
+}
+
 #[allow(unused)]
 pub fn pub_in_super(vis: Visibility) -> Visibility {
     match vis {
@@ -334,24 +397,9 @@ pub fn pub_in_super(vis: Visibility) -> Visibility {
     }
 }
 
-pub fn unwrap_v8_local(name: &str) -> TokenStream {
-    let err = format!("{name} is None");
-    let name = format_ident!("{name}");
-    quote! {{
-        let Some(#name) = #name else {
-            return if let Some(exception) = scope.exception() {
-                Err(JsError::from_v8_exception(scope, exception))?
-            } else {
-                Err(anyhow!(#err))
-            };
-        };
-        #name
-    }}
-}
-
 #[allow(
     non_camel_case_types,
-    reason = "this is only used like a unit value in quote! {}"
+    reason = "this is used like a unit value in quote! {}"
 )]
 pub struct use_prelude;
 
@@ -375,7 +423,7 @@ impl ToTokens for use_prelude {
 
 #[allow(
     non_camel_case_types,
-    reason = "this is only used like a unit value in quote! {}"
+    reason = "this is used like a unit value in quote! {}"
 )]
 pub struct use_deno;
 

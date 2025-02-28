@@ -1,227 +1,328 @@
 use darling::{Error, Result};
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{
     parse::{Parse, Parser},
-    Generics, Ident, ImplItem, ImplItemType, ItemImpl, Visibility,
+    punctuated::Punctuated,
+    spanned::Spanned,
+    Attribute, Generics, Ident, ImplItemFn, ImplItemType, Token, TraitItemFn, TraitItemType,
+    TypeParamBound, Visibility, WhereClause,
 };
 use tap::Pipe;
 
 use crate::{
     util::{
-        only_inherent_impl, use_deno, use_prelude, BindFunction, FatalErrors, FunctionLength,
-        FunctionThis, PropertyKey, RecoverableErrors, V8Conv,
+        to_v8_bound, type_ident, BindFunction, DeriveInterface, FatalErrors, FunctionLength,
+        FunctionThis, InterfaceLike, OuterType, OuterTypeKind, PropertyKey, RecoverableErrors,
+        SomeFunc, SomeType, V8Conv,
     },
     Iterator_,
 };
 
 pub fn iterator(_: Iterator_, item: TokenStream) -> Result<TokenStream> {
-    let errors = Error::accumulator();
+    InterfaceLike::parse
+        .parse2(item)?
+        .derive::<DeriveIterator>()
+}
 
-    let (item, mut errors) = ItemImpl::parse.parse2(item).or_fatal(errors)?;
+struct DeriveIterator;
 
-    errors.handle(only_inherent_impl(&item));
-
-    let ItemImpl {
-        attrs,
-        generics: Generics {
-            params,
-            where_clause,
+impl DeriveInterface for DeriveIterator {
+    fn impl_type(item: ImplItemType) -> Result<SomeType> {
+        let ImplItemType {
+            attrs,
+            defaultness,
+            vis,
+            ident,
+            generics,
+            ty,
             ..
-        },
-        self_ty,
-        items,
-        ..
-    } = item;
+        } = item;
 
-    let item_type = items
-        .into_iter()
-        .filter_map(|item| errors.handle(item_type(item)))
-        .collect::<Vec<_>>();
+        type_named_item(&ident)?;
 
-    let item_type = match item_type.len() {
-        0 => V8Conv::default(), // TODO: make this mandatory
-        1 => item_type.into_iter().next().unwrap().0,
-        _ => {
-            let mut item_type = item_type.into_iter();
-            let ty = item_type.next().unwrap().0;
-            "more than 1 `type Item` specified\nspecify 1 or none"
-                .pipe(Error::custom)
-                .with_span(&item_type.next().unwrap().1)
-                .pipe(|e| errors.push(e));
-            ty
+        let mut errors = Error::accumulator();
+
+        errors.handle(no_attributes(attrs));
+        errors.handle(no_defaultness(defaultness));
+        errors.handle(no_generics(&generics));
+        errors.handle(no_where_clause(&generics));
+        errors.handle(no_visibility(vis));
+
+        errors.finish_with(SomeType { ident, ty })
+    }
+
+    fn trait_type(item: TraitItemType) -> Result<SomeType> {
+        let TraitItemType {
+            attrs,
+            ident,
+            generics,
+            bounds,
+            default,
+            ..
+        } = item;
+
+        type_named_item(&ident)?;
+
+        let mut errors = Error::accumulator();
+
+        errors.handle(no_attributes(attrs));
+        errors.handle(no_generics(&generics));
+        errors.handle(no_where_clause(&generics));
+        errors.handle(no_bounds(bounds));
+
+        let (ty, errors) = match default {
+            None => Error::custom("a concrete type is required: `type Item = ...`")
+                .with_span(&ident)
+                .pipe(Err),
+            Some((_, ty)) => Ok(ty),
         }
-    };
+        .or_fatal(errors)?;
 
-    let return_ty = item_type.to_type();
+        errors.finish_with(SomeType { ident, ty })
+    }
 
-    let fn_value = BindFunction {
-        source: "next".into(),
-        this: FunctionThis::Self_,
-        ctor: false,
-        length: FunctionLength::Fixed(0),
-    };
+    fn count_items(fns: usize, types: usize) -> Result<()> {
+        match (fns, types) {
+            (_, 1) => Ok(()),
+            (_, _) => "expected exactly one `type Item = ...`"
+                .pipe(Error::custom)
+                .pipe(Err),
+        }
+    }
 
-    let value_key = PropertyKey::from("value");
-    let value_getter = V8Conv::default().to_getter();
+    fn derive_type(
+        SomeType { ty, .. }: SomeType,
+        OuterType {
+            this,
+            generics:
+                Generics {
+                    params,
+                    where_clause,
+                    ..
+                },
+            kind,
+        }: OuterType,
+    ) -> Result<TokenStream> {
+        let mut errors = Error::accumulator();
 
-    let done_key = PropertyKey::from("done");
-    let done_getter = V8Conv::default().to_getter();
+        let item_type = V8Conv::from_type(ty).and_recover(&mut errors);
 
-    let into_item = item_type.to_cast_from_v8("value", "scope");
+        let return_ty = item_type.to_type();
 
-    let fn_next = quote! {
-        pub fn next(&mut self, rt: &mut JsRuntime) -> Result<Option<#return_ty>>
-        {
-            let scope = &mut rt.handle_scope();
-            let next = {
-                #fn_value
-                let this = ToV8::to_v8(&*self, scope)?;
-                let this = v8::Local::new(scope, this);
-                call(scope, this, [])
-                    .context("failed to call `next` on iterator")?
-            };
-            let done = {
-                #done_getter
-                let this = v8::Local::new(scope, &next);
-                let prop = #done_key;
-                getter(scope, this, prop)
-                    .context("failed to get `done` from iterator result")?
-            };
-            let value = {
-                #value_getter
-                let this = v8::Local::new(scope, &next);
-                let prop = #value_key;
-                getter(scope, this, prop)
-                    .context("failed to get `value` from iterator result")?
-            };
-            let done = v8::Local::new(scope, done);
-            let value = v8::Local::new(scope, value);
-            if done.is_true() {
-                if value.is_undefined() {
-                    Ok(None)
+        let fn_value = BindFunction {
+            source: "next".into(),
+            this: FunctionThis::Self_,
+            ctor: false,
+            length: FunctionLength::Fixed(0),
+        };
+
+        let value_key = PropertyKey::from("value");
+        let value_getter = V8Conv::default().to_getter();
+
+        let done_key = PropertyKey::from("done");
+        let done_getter = V8Conv::default().to_getter();
+
+        let into_item = item_type.to_cast_from_v8("value", "scope");
+
+        let vis = match kind {
+            OuterTypeKind::Impl => quote! { pub },
+            OuterTypeKind::Trait => quote! {},
+        };
+
+        let fn_next = quote! {
+            #vis fn next(&mut self, rt: &mut JsRuntime) -> Result<Option<#return_ty>>
+            {
+                let scope = &mut rt.handle_scope();
+                let next = {
+                    #fn_value
+                    let this = ToV8::to_v8(&*self, scope)?;
+                    let this = v8::Local::new(scope, this);
+                    call(scope, this, [])
+                        .context("failed to call `next` on iterator")?
+                };
+                let done = {
+                    #done_getter
+                    let this = v8::Local::new(scope, &next);
+                    let prop = #done_key;
+                    getter(scope, this, prop)
+                        .context("failed to get `done` from iterator result")?
+                };
+                let value = {
+                    #value_getter
+                    let this = v8::Local::new(scope, &next);
+                    let prop = #value_key;
+                    getter(scope, this, prop)
+                        .context("failed to get `value` from iterator result")?
+                };
+                let done = v8::Local::new(scope, done);
+                let value = v8::Local::new(scope, value);
+                if done.is_true() {
+                    if value.is_undefined() {
+                        Ok(None)
+                    } else {
+                        Ok(Some(#into_item?))
+                    }
                 } else {
                     Ok(Some(#into_item?))
                 }
-            } else {
-                Ok(Some(#into_item?))
-            }
-        }
-    };
-
-    let fn_into_iter = {
-        quote! {
-            pub fn into_iter(self, rt: &mut JsRuntime)
-                -> impl Iterator<Item = Result<#return_ty>> + use<'_, #params>
-            {
-                struct Iter<'__rt, #params> {
-                    rt: &'__rt mut JsRuntime,
-                    inner: #self_ty,
-                }
-
-                impl < #params> ::core::iter::Iterator for Iter<'_, #params>
-                #where_clause
-                {
-                    type Item = Result<#return_ty>;
-
-                    fn next(&mut self) -> Option<Self::Item> {
-                        self.inner.next(self.rt).transpose()
-                    }
-                }
-
-                Iter { rt, inner: self }
-            }
-        }
-    };
-
-    errors.finish()?;
-
-    Ok(quote! {
-        const _: () = {
-            #use_prelude
-            #use_deno
-
-            #(#attrs)*
-            impl <#params> #self_ty
-            #where_clause
-            {
-                #fn_next
-                #fn_into_iter
             }
         };
-    })
-}
 
-fn item_type(item: ImplItem) -> Result<(V8Conv, Ident)> {
-    let ImplItem::Type(ty) = item else {
-        return "unexpected item\nmove this item to another impl block"
-            .pipe(Error::custom)
-            .with_span(&item)
-            .pipe(Err);
-    };
+        let fn_into_iter = {
+            let precise_capturing = match kind {
+                OuterTypeKind::Impl => quote! { + use<'_, #params> },
+                OuterTypeKind::Trait => quote! {},
+            };
 
-    let ImplItemType {
-        attrs,
-        defaultness,
-        vis,
-        ident,
-        generics,
-        ty,
-        ..
-    } = ty;
+            let outer_type = match kind {
+                OuterTypeKind::Impl => quote! {},
+                OuterTypeKind::Trait => quote! { T, },
+            };
 
-    if ident != "Item" {
-        return "unexpected type name, expected `type Item`"
-            .pipe(Error::custom)
-            .with_span(&ident)
-            .pipe(Err);
+            let inner_type = match kind {
+                OuterTypeKind::Impl => quote! { #this },
+                OuterTypeKind::Trait => quote! { T },
+            };
+
+            let where_bounds = match kind {
+                OuterTypeKind::Impl => quote! { #where_clause },
+                OuterTypeKind::Trait => {
+                    let self_bounds = to_v8_bound(type_ident(format_ident!("T")));
+                    let self_bounds = quote! {
+                        #self_bounds,
+                        T: #this,
+                    };
+                    match where_clause {
+                        None => quote! {
+                            where
+                                #self_bounds
+                        },
+                        Some(WhereClause { predicates, .. }) => quote! {
+                            where
+                                #self_bounds
+                                #predicates
+                        },
+                    }
+                }
+            };
+
+            quote! {
+                #vis fn into_iter(self, rt: &mut JsRuntime)
+                    -> impl Iterator<Item = Result<#return_ty>> #precise_capturing
+                {
+                    struct Iter<'__rt, #outer_type #params> {
+                        rt: &'__rt mut JsRuntime,
+                        inner: #inner_type,
+                    }
+
+                    impl <#outer_type #params> ::core::iter::Iterator for Iter<'_, #outer_type #params>
+                    #where_bounds
+                    {
+                        type Item = Result<#return_ty>;
+
+                        fn next(&mut self) -> Option<Self::Item> {
+                            self.inner.next(self.rt).transpose()
+                        }
+                    }
+
+                    Iter { rt, inner: self }
+                }
+            }
+        };
+
+        errors.finish_with(quote! {
+            #fn_next
+            #fn_into_iter
+        })
     }
 
-    let mut errors = Error::accumulator();
+    fn unsupported<T, S: Spanned>(span: S) -> Result<T> {
+        Error::custom("unexpected item\nmove this item to another impl block")
+            .with_span(&span)
+            .pipe(Err)
+    }
 
-    errors.handle(if !attrs.is_empty() {
+    fn impl_func(item: ImplItemFn) -> Result<SomeFunc> {
+        Self::unsupported(item)
+    }
+
+    fn trait_func(item: TraitItemFn) -> Result<SomeFunc> {
+        Self::unsupported(item)
+    }
+
+    fn derive_func(item: SomeFunc, _: OuterType) -> Result<TokenStream> {
+        Self::unsupported(item.sig.ident)
+    }
+}
+
+fn type_named_item(ident: &Ident) -> Result<()> {
+    if ident != "Item" {
+        "unexpected type name, expected `type Item`"
+            .pipe(Error::custom)
+            .with_span(&ident)
+            .pipe(Err)
+    } else {
+        Ok(())
+    }
+}
+
+fn no_attributes(attrs: Vec<Attribute>) -> Result<()> {
+    if !attrs.is_empty() {
         Error::custom("macro ignores attributes in this location")
             .with_span(&quote! { #(#attrs)* })
             .pipe(Err)
     } else {
         Ok(())
-    });
+    }
+}
 
-    errors.handle(if defaultness.is_some() {
+fn no_defaultness(defaultness: Option<Token![default]>) -> Result<()> {
+    if defaultness.is_some() {
         Error::custom("macro ignores `default` in this location")
             .with_span(&defaultness)
             .pipe(Err)
     } else {
         Ok(())
-    });
+    }
+}
 
-    errors.handle(if !generics.params.is_empty() {
+fn no_generics(generics: &Generics) -> Result<()> {
+    if !generics.params.is_empty() {
         Error::custom("macro ignores type params in this location")
             .with_span(&generics.params)
             .pipe(Err)
     } else {
         Ok(())
-    });
+    }
+}
 
-    errors.handle(if generics.where_clause.is_some() {
+fn no_where_clause(generics: &Generics) -> Result<()> {
+    if generics.where_clause.is_some() {
         Error::custom("macro ignores where clause in this location")
             .with_span(&generics.where_clause)
             .pipe(Err)
     } else {
         Ok(())
-    });
+    }
+}
 
-    errors.handle(
-        if matches!(vis, Visibility::Public(_) | Visibility::Restricted(_)) {
-            Error::custom("macro ignores visibility modifiers in this location")
-                .with_span(&vis)
-                .pipe(Err)
-        } else {
-            Ok(())
-        },
-    );
+fn no_visibility(vis: Visibility) -> Result<()> {
+    if matches!(vis, Visibility::Public(_) | Visibility::Restricted(_)) {
+        Error::custom("macro ignores visibility modifiers in this location")
+            .with_span(&vis)
+            .pipe(Err)
+    } else {
+        Ok(())
+    }
+}
 
-    let ty = V8Conv::from_type(ty).and_recover(&mut errors);
-
-    errors.finish_with((ty, ident))
+fn no_bounds(bounds: Punctuated<TypeParamBound, Token![+]>) -> Result<()> {
+    if bounds.is_empty() {
+        Ok(())
+    } else {
+        Error::custom("macro ignores trait bounds in this location")
+            .with_span(&bounds)
+            .pipe(Err)
+    }
 }

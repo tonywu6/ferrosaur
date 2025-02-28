@@ -5,7 +5,6 @@ use darling::{
 };
 use proc_macro2::TokenStream;
 use syn::{parse_macro_input, Lit, LitStr, Meta};
-use util::ErrorLocation;
 
 mod fast_string;
 mod function;
@@ -17,7 +16,7 @@ mod util;
 mod value;
 
 use crate::util::{
-    FatalErrors, FlagEnum, FlagLike, FlagName, TokenStreamResult, Unary, V8InnerType,
+    ErrorLocation, FatalErrors, FlagEnum, FlagLike, FlagName, TokenStreamResult, Unary, V8InnerType,
 };
 
 #[proc_macro_attribute]

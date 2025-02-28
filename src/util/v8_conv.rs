@@ -6,12 +6,14 @@ use syn::{
     punctuated::Punctuated,
     spanned::Spanned,
     token::Paren,
-    AngleBracketedGenericArguments, FnArg, GenericArgument, Ident, Meta, Path, PathArguments,
-    PathSegment, ReturnType, Token, Type, TypePath, TypeTuple,
+    AngleBracketedGenericArguments, BoundLifetimes, FnArg, GenericArgument, GenericParam, Ident,
+    Lifetime, LifetimeParam, Meta, Path, PathArguments, PathSegment, PredicateType, ReturnType,
+    Token, TraitBound, TraitBoundModifier, Type, TypeParamBound, TypePath, TypeReference,
+    TypeTuple, WhereClause, WherePredicate,
 };
-use tap::Pipe;
+use tap::{Pipe, Tap};
 
-use super::{unwrap_v8_local, Caveat};
+use super::{type_ident, unwrap_v8_local, Caveat};
 
 #[derive(Debug, Clone)]
 pub enum V8Conv {
@@ -34,17 +36,7 @@ impl V8Conv {
 
     pub fn from_fn_arg(arg: FnArg) -> Caveat<Self> {
         match arg {
-            FnArg::Receiver(recv) => PathSegment {
-                ident: Token![Self](recv.span()).into(),
-                arguments: PathArguments::None,
-            }
-            .pipe(|path| Path {
-                leading_colon: None,
-                segments: std::iter::once(path).collect(),
-            })
-            .pipe(|path| TypePath { qself: None, path })
-            .pipe(Type::Path)
-            .pipe(Self::from_type),
+            FnArg::Receiver(recv) => Self::from_type(type_ident(Token![Self](recv.span()).into())),
             FnArg::Typed(ty) => Self::from_type(*ty.ty),
         }
     }
@@ -427,4 +419,65 @@ impl FromMeta for V8InnerType {
             .pipe(Self)
             .pipe(Ok)
     }
+}
+
+pub fn empty_where_clause() -> WhereClause {
+    WhereClause {
+        where_token: Token![where](Span::call_site()),
+        predicates: Default::default(),
+    }
+}
+
+pub fn to_v8_bound(self_ty: Type) -> WherePredicate {
+    let a = Lifetime::new("'a", Span::call_site());
+
+    let for_a = LifetimeParam {
+        lifetime: a.clone(),
+        attrs: Default::default(),
+        colon_token: None,
+        bounds: Default::default(),
+    }
+    .pipe(GenericParam::Lifetime)
+    .pipe(|a| BoundLifetimes::default().tap_mut(|b| b.lifetimes.push(a)))
+    .pipe(Some);
+
+    let ref_self = TypeReference {
+        and_token: Token![&](Span::call_site()),
+        lifetime: Some(a.clone()),
+        elem: Box::new(self_ty),
+        mutability: None,
+    }
+    .pipe(Type::Reference);
+
+    let to_v8 = PathSegment {
+        ident: format_ident!("ToV8"),
+        arguments: AngleBracketedGenericArguments {
+            colon2_token: None,
+            lt_token: Token![<](Span::call_site()),
+            args: std::iter::once(GenericArgument::Lifetime(a)).collect(),
+            gt_token: Token![>](Span::call_site()),
+        }
+        .pipe(PathArguments::AngleBracketed),
+    }
+    .pipe(|path| Path {
+        leading_colon: None,
+        segments: std::iter::once(path).collect(),
+    })
+    .pipe(|path| TraitBound {
+        paren_token: None,
+        modifier: TraitBoundModifier::None,
+        lifetimes: None,
+        path,
+    })
+    .pipe(TypeParamBound::Trait)
+    .pipe(std::iter::once)
+    .collect();
+
+    PredicateType {
+        lifetimes: for_a,
+        bounded_ty: ref_self,
+        colon_token: Token![:](Span::call_site()),
+        bounds: to_v8,
+    }
+    .pipe(WherePredicate::Type)
 }

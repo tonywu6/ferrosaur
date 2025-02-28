@@ -37,6 +37,7 @@ impl TimersPermission for Permissions {
 pub fn with_portable_snapshot<T: FnOnce()>(file_macro: &'static str, cb: T) -> Result<()> {
     let test_file = file_macro.parse::<std::path::PathBuf>()?;
 
+    // TODO: make absolute and use module!
     let test_dir = Path::new("snapshots").join(test_file.with_extension("").file_name().unwrap());
 
     insta::Settings::clone_current()
