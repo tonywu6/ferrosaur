@@ -9,7 +9,7 @@ use syn::{
 use crate::{
     util::{
         inner_mod_name, use_deno, use_prelude,
-        v8_conv_impl::{impl_as_ref_inner, impl_global_cast, impl_to_v8},
+        v8::snippets::{impl_as_ref_inner, impl_global_cast, impl_to_v8},
         FatalErrors, NoGenerics,
     },
     GlobalThis,

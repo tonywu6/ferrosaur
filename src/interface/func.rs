@@ -1,11 +1,13 @@
 use darling::{Error, Result};
 use proc_macro2::TokenStream;
 use syn::{Signature, Type};
-use tap::Pipe;
+use tap::{Pipe, Tap};
 
 use crate::util::{
-    expect_self_arg, CallFunction, Caveat, FunctionIntent, MergeErrors, NewtypeMeta, PropertyKey,
-    RecoverableErrors,
+    expect_self_arg,
+    function::{CallFunction, FunctionIntent},
+    property::PropertyKey,
+    Caveat, MergeErrors, NewtypeMeta, RecoverableErrors,
 };
 
 use super::{property_key, Constructor, Function, ResolveName};
@@ -55,9 +57,9 @@ fn func_to_call(Function { name, symbol }: Function, sig: &mut Signature) -> Cav
     .resolve()
     .and_recover(&mut errors);
 
-    let mut call = CallFunction::from_sig(sig).and_recover(&mut errors);
-
-    call.source = name.into();
+    let call = CallFunction::from_sig(sig)
+        .and_recover(&mut errors)
+        .tap_mut(|call| call.source = name.into());
 
     (call, errors.into_one()).into()
 }

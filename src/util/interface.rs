@@ -10,8 +10,8 @@ use syn::{
 use tap::{Pipe, Tap};
 
 use super::{
-    empty_where_clause, inner_mod_name, only_inherent_impl, only_regular_trait, to_v8_bound,
-    type_ident, use_deno, use_prelude,
+    empty_where_clause, inner_mod_name, only_inherent_impl, only_regular_trait, type_ident,
+    use_deno, use_prelude, v8::to_v8_bound,
 };
 
 #[derive(Debug)]

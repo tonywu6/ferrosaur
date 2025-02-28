@@ -12,9 +12,12 @@ use tap::Pipe;
 
 use crate::{
     util::{
-        to_v8_bound, type_ident, BindFunction, DeriveInterface, FatalErrors, FunctionLength,
-        FunctionThis, InterfaceLike, OuterType, OuterTypeKind, PropertyKey, RecoverableErrors,
-        SomeFunc, SomeType, V8Conv,
+        function::{BindFunction, FunctionLength, FunctionThis},
+        interface::{DeriveInterface, InterfaceLike, OuterType, OuterTypeKind, SomeFunc, SomeType},
+        property::PropertyKey,
+        type_ident,
+        v8::{to_v8_bound, V8Conv},
+        FatalErrors, RecoverableErrors,
     },
     Iterator_,
 };

@@ -8,12 +8,17 @@ use syn::{
 
 use crate::{
     util::{
-        inner_mod_name, use_deno, use_prelude,
-        v8_conv_impl::{
-            impl_as_ref_inner, impl_from_inner, impl_from_v8, impl_global_cast, impl_into_inner,
-            impl_to_v8,
+        inner_mod_name,
+        unary::Unary,
+        use_deno, use_prelude,
+        v8::{
+            snippets::{
+                impl_as_ref_inner, impl_from_inner, impl_from_v8, impl_global_cast,
+                impl_into_inner, impl_to_v8,
+            },
+            V8InnerType,
         },
-        FatalErrors, NoGenerics, Unary, V8InnerType,
+        FatalErrors, NoGenerics,
     },
     Value,
 };
@@ -39,7 +44,7 @@ pub fn value(value: Value, item: TokenStream) -> Result<TokenStream> {
     } = item;
 
     let Value {
-        expect: Unary(V8InnerType(expect)),
+        of_type: Unary(V8InnerType(expect)),
     } = value;
 
     let outer_ty = expect.to_type().into_token_stream();

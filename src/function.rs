@@ -10,8 +10,11 @@ use tap::{Pipe, Tap};
 
 use crate::{
     util::{
-        expect_self_arg, no_default_fn, no_fn_body, CallFunction, DeriveInterface, FlagName,
-        FunctionSource, InterfaceLike, OuterType, RecoverableErrors, SomeFunc, SomeType,
+        expect_self_arg,
+        flag::FlagName,
+        function::{CallFunction, FunctionSource},
+        interface::{DeriveInterface, InterfaceLike, OuterType, SomeFunc, SomeType},
+        no_default_fn, no_fn_body, RecoverableErrors,
     },
     Function, JsItem,
 };

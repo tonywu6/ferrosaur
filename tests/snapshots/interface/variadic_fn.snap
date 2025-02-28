@@ -1,5 +1,5 @@
 ---
-source: tests/properties.rs
+source: tests/interface.rs
 expression: stdout
 ---
 0 true 2 1970-01-01T00:00:00.003Z

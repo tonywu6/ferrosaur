@@ -9,7 +9,7 @@ use syn::{
     AngleBracketedGenericArguments, BoundLifetimes, FnArg, GenericArgument, GenericParam, Ident,
     Lifetime, LifetimeParam, Meta, Path, PathArguments, PathSegment, PredicateType, ReturnType,
     Token, TraitBound, TraitBoundModifier, Type, TypeParamBound, TypePath, TypeReference,
-    TypeTuple, WhereClause, WherePredicate,
+    TypeTuple, WherePredicate,
 };
 use tap::{Pipe, Tap};
 
@@ -421,13 +421,6 @@ impl FromMeta for V8InnerType {
     }
 }
 
-pub fn empty_where_clause() -> WhereClause {
-    WhereClause {
-        where_token: Token![where](Span::call_site()),
-        predicates: Default::default(),
-    }
-}
-
 pub fn to_v8_bound(self_ty: Type) -> WherePredicate {
     let a = Lifetime::new("'a", Span::call_site());
 
@@ -480,4 +473,109 @@ pub fn to_v8_bound(self_ty: Type) -> WherePredicate {
         bounds: to_v8,
     }
     .pipe(WherePredicate::Type)
+}
+
+pub mod snippets {
+    use proc_macro2::TokenStream;
+    use quote::{quote, ToTokens};
+
+    pub fn impl_from_inner<K: ToTokens>(v8_outer: &TokenStream, ident: K) -> TokenStream {
+        quote! {
+            #[automatically_derived]
+            impl From<#v8_outer> for #ident {
+                fn from(value: #v8_outer) -> Self {
+                    Self(value)
+                }
+            }
+        }
+    }
+
+    pub fn impl_into_inner<K: ToTokens>(v8_outer: &TokenStream, ident: K) -> TokenStream {
+        quote! {
+            #[automatically_derived]
+            impl From<#ident> for #v8_outer {
+                fn from(value: #ident) -> Self {
+                    value.0
+                }
+            }
+        }
+    }
+
+    pub fn impl_as_ref_inner<K: ToTokens>(v8_outer: &TokenStream, ident: K) -> TokenStream {
+        quote! {
+            #[automatically_derived]
+            impl AsRef<#v8_outer> for #ident {
+                fn as_ref(&self) -> &#v8_outer {
+                    &self.0
+                }
+            }
+        }
+    }
+
+    pub fn impl_from_v8<K: ToTokens>(v8_inner: &TokenStream, ident: K) -> TokenStream {
+        quote! {
+            #[automatically_derived]
+            impl<'a> FromV8<'a> for #ident {
+                type Error =
+                    <v8::Local<'a, v8::Value> as TryInto<v8::Local<'a, #v8_inner>>>::Error;
+
+                fn from_v8(
+                    scope: &mut v8::HandleScope<'a>,
+                    value: v8::Local<'a, v8::Value>,
+                ) -> ::core::result::Result<Self, Self::Error> {
+                    Ok(Self(v8::Global::new(scope, value.try_cast()?)))
+                }
+            }
+        }
+    }
+
+    pub fn impl_to_v8<K: ToTokens>(v8_inner: &TokenStream, ident: K) -> TokenStream {
+        let error = quote! {
+            type Error = <v8::Local<'a, #v8_inner> as TryInto<v8::Local<'a, v8::Value>>>::Error;
+        };
+
+        let to_v8 = quote! {
+            fn to_v8(
+                self,
+                scope: &mut v8::HandleScope<'a>,
+            ) -> ::core::result::Result<v8::Local<'a, v8::Value>, Self::Error> {
+                v8::Local::new(scope, &self.0).try_cast()
+            }
+        };
+
+        quote! {
+            #[automatically_derived]
+            impl<'a> ToV8<'a> for #ident {
+                #error
+                #to_v8
+            }
+
+            #[automatically_derived]
+            impl<'a> ToV8<'a> for &'_ #ident {
+                #error
+                #to_v8
+            }
+        }
+    }
+
+    pub fn impl_global_cast(v8_inner: &TokenStream) -> TokenStream {
+        quote! {
+            #[inline(always)]
+            pub fn try_cast_global<'a, T>(
+                &self,
+                rt: &'a mut JsRuntime,
+            ) -> ::core::result::Result<
+                 v8::Global<T>,
+                <v8::Local<'a, #v8_inner> as TryInto<v8::Local<'a, T>>>::Error
+            >
+            where
+                 v8::Local<'a, #v8_inner>:   TryInto<v8::Local<'a, T>>,
+            {
+                let scope = &mut rt.handle_scope();
+                let this = v8::Local::new(scope, &self.0);
+                let this = this.try_cast()?;
+                Ok(v8::Global::new(scope, this))
+            }
+        }
+    }
 }

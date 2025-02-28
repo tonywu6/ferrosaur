@@ -11,11 +11,15 @@ use tap::Pipe;
 
 use crate::{
     util::{
-        no_default_fn, no_fn_body, Caveat, DeriveInterface, ErrorLocation, FatalErrors, FlagEnum,
-        FlagLike, FlagName, InterfaceLike, OuterType, PropertyKey, SomeFunc, SomeType, StringLike,
-        Unary, WellKnown,
+        flag::{FlagEnum, FlagLike, FlagName},
+        interface::{DeriveInterface, InterfaceLike, OuterType, SomeFunc, SomeType},
+        no_default_fn, no_fn_body,
+        property::{PropertyKey, WellKnown},
+        string::StringLike,
+        unary::Unary,
+        Caveat, ErrorLocation, FatalErrors,
     },
-    Properties,
+    Interface,
 };
 
 mod func;
@@ -62,7 +66,7 @@ struct Constructor {
     class: Option<Unary<PropKeyString>>,
 }
 
-pub fn properties(_: Properties, item: TokenStream) -> Result<TokenStream> {
+pub fn interface(_: Interface, item: TokenStream) -> Result<TokenStream> {
     InterfaceLike::parse
         .parse2(item)?
         .derive::<DeriveProperties>()

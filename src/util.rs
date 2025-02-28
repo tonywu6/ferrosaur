@@ -1,35 +1,26 @@
 use darling::{error::Accumulator, Error, FromGenerics, Result};
 use heck::ToSnakeCase;
-use proc_macro2::{TokenStream, TokenTree};
+use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
     punctuated::Punctuated, spanned::Spanned, token::Paren, Block, FnArg, Generics, Ident,
     ItemImpl, ItemTrait, Pat, PatIdent, PatType, Path, PathArguments, PathSegment, Receiver,
-    ReturnType, Token, Type, TypePath, VisRestricted, Visibility,
+    ReturnType, Token, Type, TypePath, VisRestricted, Visibility, WhereClause,
 };
 use tap::{Conv, Pipe, Tap};
 
-mod bind_function;
-mod call_function;
-mod flag_like;
-mod interface_like;
-mod property_key;
-mod string_like;
-mod unary;
-mod v8_conv;
-pub mod v8_conv_impl;
+pub mod flag;
+pub mod function;
+pub mod interface;
+pub mod property;
+pub mod string;
+pub mod unary;
+pub mod v8;
 
-pub use self::{
-    bind_function::{BindFunction, FunctionLength, FunctionSource, FunctionThis},
-    call_function::{CallFunction, FunctionIntent},
-    flag_like::{FlagEnum, FlagLike, FlagName},
-    interface_like::{
-        DeriveInterface, InterfaceLike, OuterType, OuterTypeKind, SomeFunc, SomeType,
-    },
-    property_key::{PropertyKey, WellKnown},
-    string_like::StringLike,
+use self::{
+    flag::{FlagEnum, FlagLike, FlagName},
+    string::StringLike,
     unary::Unary,
-    v8_conv::{empty_where_clause, to_v8_bound, V8Conv, V8InnerType},
 };
 
 pub trait TokenStreamResult {
@@ -317,6 +308,13 @@ pub fn only_explicit_return_type(output: &ReturnType, ident: &Ident) -> Result<(
             .pipe(Err)
     } else {
         Ok(())
+    }
+}
+
+pub fn empty_where_clause() -> WhereClause {
+    WhereClause {
+        where_token: Token![where](Span::call_site()),
+        predicates: Default::default(),
     }
 }
 

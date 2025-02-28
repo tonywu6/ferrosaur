@@ -128,7 +128,7 @@ async fn test_callback() -> Result<()> {
 
     let stdout = global.cargo_test_stdout(rt)?;
 
-    with_portable_snapshot(file!(), || insta::assert_snapshot!(stdout))?;
+    with_portable_snapshot(|| insta::assert_snapshot!(stdout), module_path!())?;
 
     Ok(())
 }
@@ -151,12 +151,12 @@ async fn test_variadic_fn() -> Result<()> {
 
     let stdout = global.cargo_test_stdout(rt)?;
 
-    with_portable_snapshot(file!(), || insta::assert_snapshot!(stdout))?;
+    with_portable_snapshot(|| insta::assert_snapshot!(stdout), module_path!())?;
 
     Ok(())
 }
 
-#[js(properties)]
+#[js(interface)]
 impl Global {
     #[js(func(name(Boolean)))]
     fn boolean(&self, v: serde<bool>) -> v8::Global<v8::Value> {}

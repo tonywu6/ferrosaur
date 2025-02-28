@@ -34,14 +34,21 @@ impl TimersPermission for Permissions {
 }
 
 #[allow(unused)]
-pub fn with_portable_snapshot<T: FnOnce()>(file_macro: &'static str, cb: T) -> Result<()> {
-    let test_file = file_macro.parse::<std::path::PathBuf>()?;
+pub fn with_portable_snapshot<T: FnOnce()>(cb: T, module: &'static str) -> Result<()> {
+    let snapshot_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(file!())
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("snapshots");
 
-    // TODO: make absolute and use module!
-    let test_dir = Path::new("snapshots").join(test_file.with_extension("").file_name().unwrap());
+    let path = module
+        .split("::")
+        .fold(snapshot_dir, |dir, path| dir.join(path));
 
     insta::Settings::clone_current()
-        .tap_mut(|settings| settings.set_snapshot_path(test_dir))
+        .tap_mut(|settings| settings.set_snapshot_path(path))
         .tap_mut(|settings| settings.set_prepend_module_to_snapshot(false))
         .bind(cb);
 

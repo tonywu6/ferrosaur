@@ -5,7 +5,8 @@ use syn::{Generics, ReturnType, Signature};
 use tap::Pipe;
 
 use crate::util::{
-    expect_self_arg, only_pat_ident, FatalErrors, FunctionIntent, RecoverableErrors, V8Conv,
+    expect_self_arg, function::FunctionIntent, only_pat_ident, v8::V8Conv, FatalErrors,
+    RecoverableErrors,
 };
 
 use super::Setter;

@@ -5,8 +5,8 @@ use syn::{Generics, Signature};
 use tap::Pipe;
 
 use crate::util::{
-    expect_self_arg, only_explicit_return_type, FunctionIntent, NewtypeMeta, RecoverableErrors,
-    V8Conv,
+    expect_self_arg, function::FunctionIntent, only_explicit_return_type, v8::V8Conv, NewtypeMeta,
+    RecoverableErrors,
 };
 
 use super::{Property, ResolveName};

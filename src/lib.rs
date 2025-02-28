@@ -5,18 +5,22 @@ use darling::{
 };
 use proc_macro2::TokenStream;
 use syn::{parse_macro_input, Lit, LitStr, Meta};
+use tap::Pipe;
 
 mod fast_string;
 mod function;
 mod global_this;
+mod interface;
 mod iterator;
 mod module;
-mod properties;
 mod util;
 mod value;
 
 use crate::util::{
-    ErrorLocation, FatalErrors, FlagEnum, FlagLike, FlagName, TokenStreamResult, Unary, V8InnerType,
+    flag::{FlagEnum, FlagLike, FlagName},
+    unary::Unary,
+    v8::V8InnerType,
+    ErrorLocation, FatalErrors, TokenStreamResult,
 };
 
 #[proc_macro_attribute]
@@ -38,14 +42,19 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
         JsItem::GlobalThis(FlagLike(global_this)) => {
             global_this::global_this(global_this, item).error_at::<JsItem, GlobalThis>()
         }
-        JsItem::Properties(FlagLike(properties)) => {
-            properties::properties(properties, item).error_at::<JsItem, Properties>()
+        JsItem::Interface(FlagLike(interface)) => {
+            interface::interface(interface, item).error_at::<JsItem, Interface>()
         }
         JsItem::Function(FlagLike(function)) => {
             function::function(function, item).error_at::<JsItem, Function>()
         }
         JsItem::Iterator(FlagLike(iterator)) => {
             iterator::iterator(iterator, item).error_at::<JsItem, Iterator_>()
+        }
+        JsItem::Prop | JsItem::Func | JsItem::New | JsItem::Get | JsItem::Set => {
+            "should be use within a #[js(interface)] impl or trait"
+                .pipe(Error::custom)
+                .pipe(Err)
         }
     }
     .or_fatal(errors)?;
@@ -59,9 +68,14 @@ enum JsItem {
     Module(FlagLike<Module>),
     GlobalThis(FlagLike<GlobalThis>),
     Value(FlagLike<Value>),
-    Properties(FlagLike<Properties>),
+    Interface(FlagLike<Interface>),
     Function(FlagLike<Function>),
     Iterator(FlagLike<Iterator_>),
+    Prop,
+    Func,
+    New,
+    Get,
+    Set,
 }
 
 #[derive(Debug, Clone, FromMeta)]
@@ -93,11 +107,11 @@ struct GlobalThis;
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Value {
     #[darling(default)]
-    expect: Unary<V8InnerType>,
+    of_type: Unary<V8InnerType>,
 }
 
 #[derive(Debug, Default, Clone, FromMeta)]
-struct Properties;
+struct Interface;
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Function;
@@ -169,7 +183,7 @@ impl FlagEnum for JsItem {
         Module::PREFIX,
         GlobalThis::PREFIX,
         Value::PREFIX,
-        Properties::PREFIX,
+        Interface::PREFIX,
     ];
 }
 
@@ -197,8 +211,8 @@ impl FlagName for Value {
     }
 }
 
-impl FlagName for Properties {
-    const PREFIX: &'static str = "properties";
+impl FlagName for Interface {
+    const PREFIX: &'static str = "interface";
 
     fn unit() -> Result<Self> {
         Ok(Self)
