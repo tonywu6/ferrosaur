@@ -18,11 +18,7 @@ pub fn impl_getter(_: Getter, sig: Signature) -> Result<Vec<TokenStream>> {
 
     let Signature {
         ident,
-        generics: Generics {
-            params,
-            where_clause,
-            ..
-        },
+        generics,
         inputs,
         output,
         ..
@@ -41,33 +37,37 @@ pub fn impl_getter(_: Getter, sig: Signature) -> Result<Vec<TokenStream>> {
     }
     .or_fatal(errors)?;
 
-    let indexer = errors.handle(only_pat_ident(&inputs[1]));
+    let key_name = errors.handle(only_pat_ident(&inputs[1]));
+    let key_type = V8Conv::from_fn_arg(inputs[1].clone()).and_recover(&mut errors);
 
-    let indexer_ty = V8Conv::from_fn_arg(inputs[1].clone()).and_recover(&mut errors);
-
-    let return_ty = V8Conv::from_output(output).and_recover(&mut errors);
+    let val_type = V8Conv::from_output(output).and_recover(&mut errors);
 
     let getter = {
-        let getter = return_ty.to_getter();
-        let from_index = indexer_ty.to_cast_into_v8(
-            indexer.map(ToString::to_string).unwrap_or_default(),
-            "scope",
-        );
-        let indexer_ty = indexer_ty.as_type();
-        let return_ty = return_ty.to_type();
+        let getter = val_type.to_getter(&generics);
+        let from_key = key_name.map(ToString::to_string).unwrap_or_default();
+        let from_key = key_type.to_cast_into_v8(from_key, "scope");
+        let key_type = key_type.as_type();
+        let val_type = val_type.to_type();
+
+        let Generics {
+            params,
+            where_clause,
+            ..
+        } = generics;
+
         quote! {
             fn #ident <#params> (
                 #self_arg,
-                #indexer: #indexer_ty,
+                #key_name: #key_type,
                 rt: &mut JsRuntime,
-            ) -> Result<#return_ty>
+            ) -> Result<#val_type>
             #where_clause
             {
                 #getter
                 let scope = &mut rt.handle_scope();
                 let this = ToV8::to_v8(self, scope)?;
                 let this = v8::Local::new(scope, this);
-                let prop = #from_index?;
+                let prop = #from_key?;
                 getter(scope, this, prop)
                     .context("failed to index into object")
             }

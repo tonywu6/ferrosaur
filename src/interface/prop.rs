@@ -1,7 +1,7 @@
 use darling::{Error, Result};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Generics, Signature};
+use syn::Signature;
 use tap::Pipe;
 
 use crate::util::{
@@ -18,11 +18,7 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
 
     let Signature {
         ident,
-        generics: Generics {
-            params,
-            where_clause,
-            ..
-        },
+        generics,
         inputs,
         output,
         ..
@@ -57,15 +53,17 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
     let return_ty = V8Conv::from_output(output).and_recover(&mut errors);
 
     let getter = {
-        let getter = return_ty.to_getter();
+        let getter = return_ty.to_getter(&generics);
         let return_ty = return_ty.to_type();
         let err = format!("failed to get property {name:?}");
+        let params = &generics.params;
+        let where_ = &generics.where_clause;
         quote! {
             fn #ident <#params> (
                 #self_arg,
                 rt: &mut JsRuntime,
             ) -> Result<#return_ty>
-            #where_clause
+            #where_
             {
                 #getter
                 let scope = &mut rt.handle_scope();
@@ -79,16 +77,18 @@ pub fn impl_property(prop: Property, sig: Signature) -> Result<Vec<TokenStream>>
 
     let setter = if with_setter.is_present() {
         let ident = format_ident!("set_{}", ident);
-        let setter = return_ty.to_setter();
+        let setter = return_ty.to_setter(&generics);
         let data_type = return_ty.to_type();
         let err = format!("failed to set property {name:?}");
+        let params = &generics.params;
+        let where_ = &generics.where_clause;
         quote! {
             fn #ident <#params> (
                 #self_arg,
                 data: #data_type,
                 _rt: &mut JsRuntime,
             ) -> Result<&Self>
-            #where_clause
+            #where_
             {
                 #setter
                 let scope = &mut _rt.handle_scope();

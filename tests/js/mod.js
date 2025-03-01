@@ -1,11 +1,44 @@
+/**
+ * @template T
+ * @param {T} v
+ * @param {number} ms
+ * @returns {Promise<T>}
+ */
 export const sleep = (v, ms) =>
   new Promise((resolve) => setTimeout(() => resolve(v), ms));
 
+/**
+ * @returns {(path: string) => void}
+ */
 export const useNavigate = () => (path) => console.log("navigating to", path);
 
-export class Rectangle {
+class Shape {
+  /**
+   * @returns {number}
+   */
+  area() {
+    throw new Error("not implemented");
+  }
+
+  [Symbol.toPrimitive](hint) {
+    if (hint === "number") {
+      return this.area();
+    } else {
+      return this[Symbol.toStringTag]();
+    }
+  }
+
+  [Symbol.toStringTag]() {
+    return "shape";
+  }
+}
+
+export class Rectangle extends Shape {
   constructor(width, height) {
+    super();
+    /** @type {number} */
     this.width = width;
+    /** @type {number} */
     this.height = height;
   }
 
@@ -13,10 +46,7 @@ export class Rectangle {
     return this.width * this.height;
   }
 
-  [Symbol.toPrimitive](hint) {
-    if (hint === "number") {
-      return this.area();
-    }
+  [Symbol.toStringTag]() {
     return `rect ${this.width}x${this.height}`;
   }
 

@@ -2,14 +2,13 @@ use std::time::Duration;
 
 use anyhow::Result;
 use deno_core::v8;
-use ferrosaur::js;
 use serde_json::json;
 
 mod compile;
 mod util;
 
 use crate::{
-    compile::{Global, I18n, Main},
+    compile::{Global, I18n, Main, Shape},
     util::{deno, with_portable_snapshot},
 };
 
@@ -105,7 +104,7 @@ async fn test_indexing_set() -> Result<()> {
 
     let global = Global::new(rt);
 
-    global.declare("foo", I18n::new(rt).await?.try_cast_global(rt)?, rt)?;
+    global.define("foo", I18n::new(rt).await?.try_cast_global(rt)?, rt)?;
 
     {
         let typeof_ = rt.execute_script("", "typeof foo")?;
@@ -154,19 +153,4 @@ async fn test_variadic_fn() -> Result<()> {
     with_portable_snapshot(|| insta::assert_snapshot!(stdout), module_path!())?;
 
     Ok(())
-}
-
-#[js(interface)]
-impl Global {
-    #[js(func(name(Boolean)))]
-    fn boolean(&self, v: serde<bool>) -> v8::Global<v8::Value> {}
-
-    #[js(func(name(Number)))]
-    fn number(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
-
-    #[js(func(name(String)))]
-    fn string(&self, v: serde<&str>) -> v8::Global<v8::Value> {}
-
-    #[js(new(class(Date)))]
-    fn date(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
 }

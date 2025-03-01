@@ -3,9 +3,10 @@ use heck::ToSnakeCase;
 use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, token::Paren, Block, FnArg, Generics, Ident,
-    ItemImpl, ItemTrait, Pat, PatIdent, PatType, Path, PathArguments, PathSegment, Receiver,
-    ReturnType, Token, Type, TypePath, VisRestricted, Visibility, WhereClause,
+    punctuated::Punctuated, spanned::Spanned, token::Paren, Block, FnArg, GenericParam, Generics,
+    Ident, ItemImpl, ItemTrait, LifetimeParam, Pat, PatIdent, PatType, Path, PathArguments,
+    PathSegment, Receiver, ReturnType, Token, Type, TypeParam, TypePath, VisRestricted, Visibility,
+    WhereClause,
 };
 use tap::{Conv, Pipe, Tap};
 
@@ -175,6 +176,92 @@ impl FromGenerics for NoGenerics {
         }
 
         errors.finish_with(Self)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MergeGenerics<'a> {
+    pub outer: &'a Generics,
+    pub lifetimes: Vec<TokenStream>,
+    pub types: Vec<TokenStream>,
+    pub bounds: Vec<TokenStream>,
+}
+
+impl MergeGenerics<'_> {
+    pub fn params(&self) -> TokenStream {
+        Punctuated::<TokenStream, Token![,]>::new()
+            .tap_mut(|p| p.extend(self.lifetimes.iter().cloned()))
+            .tap_mut(|p| p.extend(self.outer.lifetimes().map(|lt| quote! { #lt })))
+            .tap_mut(|p| p.extend(self.types.iter().cloned()))
+            .tap_mut(|p| p.extend(self.outer.type_params().map(|ty| quote! { #ty })))
+            .tap_mut(|p| p.extend(self.outer.const_params().map(|c| quote! { #c })))
+            .to_token_stream()
+    }
+
+    pub fn bounds(&self) -> TokenStream {
+        Punctuated::<TokenStream, Token![,]>::new()
+            .tap_mut(|p| p.extend(self.bounds.iter().cloned()))
+            .tap_mut(|p| {
+                if let Some(clauses) = &self.outer.where_clause {
+                    p.extend(clauses.predicates.iter().map(|c| c.to_token_stream()))
+                }
+            })
+            .to_token_stream()
+    }
+
+    pub fn arguments(&self) -> TokenStream {
+        Punctuated::<TokenStream, Token![,]>::new()
+            .tap_mut(|p| p.extend(self.lifetimes.iter().cloned()))
+            .tap_mut(|p| {
+                p.extend(self.outer.lifetimes().map(|lt| {
+                    let lt = &lt.lifetime;
+                    quote! { #lt }
+                }))
+            })
+            .tap_mut(|p| p.extend(self.types.iter().cloned()))
+            .tap_mut(|p| {
+                p.extend(self.outer.type_params().map(|ty| {
+                    let ty = &ty.ident;
+                    quote! { #ty }
+                }))
+            })
+            .tap_mut(|p| {
+                p.extend(self.outer.const_params().map(|c| {
+                    let c = &c.ident;
+                    quote! { #c }
+                }))
+            })
+            .to_token_stream()
+    }
+
+    pub fn phantom_fields(&self) -> TokenStream {
+        let fields = self.outer.params.iter().filter_map(|p| match p {
+            GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
+                let name = format_ident!("_lifetime_{}", lifetime.ident);
+                Some(quote! { #name: ::core::marker::PhantomData<&#lifetime ()> })
+            }
+            GenericParam::Type(TypeParam { ident, .. }) => {
+                let name = format_ident!("_type_{}", ident.to_string().to_lowercase());
+                Some(quote! { #name: ::core::marker::PhantomData<#ident> })
+            }
+            GenericParam::Const(_) => None,
+        });
+        quote! { #(#fields,)* }
+    }
+
+    pub fn phantom_init(&self) -> TokenStream {
+        let fields = self.outer.params.iter().filter_map(|p| match p {
+            GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
+                let name = format_ident!("_lifetime_{}", lifetime.ident);
+                Some(quote! { #name: ::core::marker::PhantomData })
+            }
+            GenericParam::Type(TypeParam { ident, .. }) => {
+                let name = format_ident!("_type_{}", ident.to_string().to_lowercase());
+                Some(quote! { #name: ::core::marker::PhantomData })
+            }
+            GenericParam::Const(_) => None,
+        });
+        quote! { #(#fields,)* }
     }
 }
 

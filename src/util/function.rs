@@ -447,7 +447,7 @@ impl ToTokens for BindFunction {
 
         let get_func = match &self.source {
             FunctionSource::Prop(prop) => {
-                let getter = func.to_getter();
+                let getter = func.to_getter(&Default::default());
                 quote! {{
                     #getter
                     let prop = #prop;
@@ -469,7 +469,7 @@ impl ToTokens for BindFunction {
         };
 
         let get_bind = {
-            let getter = func.to_getter();
+            let getter = func.to_getter(&Default::default());
             let prop = PropertyKey::from("bind");
             quote! {{
                 #getter

@@ -1,8 +1,8 @@
 use darling::{Error, Result};
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
-    parse::{Parse, ParseStream},
+    parse::{Parse, ParseStream, Parser},
     spanned::Spanned,
     Attribute, Generics, Ident, ImplItem, ImplItemFn, ImplItemType, ItemImpl, ItemTrait, Signature,
     Token, TraitItem, TraitItemFn, TraitItemType, Type, Visibility,
@@ -84,6 +84,16 @@ impl InterfaceLike {
                     .handle(D::impl_type(item))
                     .and_then(|item| errors.handle(D::derive_type(item, this)))
                     .map(|item| types.push(item)),
+                ImplItem::Verbatim(tokens) => {
+                    let span = tokens.span();
+                    if let Ok(TraitFnInImpl { semi }) = TraitFnInImpl::parse.parse2(tokens) {
+                        Error::custom("change this to an empty body `{}`")
+                            .with_span(&semi)
+                            .pipe(|err| errors.handle(Err(err)))
+                    } else {
+                        errors.handle(D::unsupported(span))
+                    }
+                }
                 _ => errors.handle(D::unsupported(item)),
             };
         }
@@ -150,6 +160,16 @@ impl InterfaceLike {
                     .handle(D::trait_type(item))
                     .and_then(|item| errors.handle(D::derive_type(item, this)))
                     .map(|item| types.push(item)),
+                TraitItem::Verbatim(tokens) => {
+                    let span = tokens.span();
+                    if let Ok(ImplFnInTrait { vis, .. }) = ImplFnInTrait::parse.parse2(tokens) {
+                        Error::custom("fn in traits should have no visibility modifier")
+                            .with_span(&vis)
+                            .pipe(|err| errors.handle(Err(err)))
+                    } else {
+                        errors.handle(D::unsupported(span))
+                    }
+                }
                 _ => errors.handle(D::unsupported(item)),
             };
         }
@@ -228,6 +248,45 @@ impl Parse for InterfaceLike {
             Ok(InterfaceLike::Trait(item))
         } else {
             Err(lookahead.error())
+        }
+    }
+}
+
+struct ImplFnInTrait {
+    vis: Visibility,
+}
+
+impl Parse for ImplFnInTrait {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        input.call(Attribute::parse_outer)?;
+        let vis = input.parse::<Visibility>()?;
+        input.parse::<Token![fn]>()?;
+        while input.parse::<TokenTree>().is_ok() {}
+        Ok(Self { vis })
+    }
+}
+
+struct TraitFnInImpl {
+    semi: Token![;],
+}
+
+impl Parse for TraitFnInImpl {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        input.call(Attribute::parse_outer)?;
+        input.parse::<Visibility>()?;
+        input.parse::<Token![fn]>()?;
+        let mut semi = None;
+        while let Ok(tree) = input.parse::<TokenTree>() {
+            if let TokenTree::Punct(punct) = tree {
+                if punct.as_char() == ';' {
+                    semi = Some(Token![;](punct.span()))
+                }
+            }
+        }
+        if let Some(semi) = semi {
+            Ok(Self { semi })
+        } else {
+            Err(input.error("does not end in a semi"))
         }
     }
 }

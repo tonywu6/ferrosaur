@@ -1,12 +1,12 @@
 use darling::{Error, Result};
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse::{Parse, Parser},
     punctuated::Punctuated,
     spanned::Spanned,
     Attribute, Generics, Ident, ImplItemFn, ImplItemType, Token, TraitItemFn, TraitItemType,
-    TypeParamBound, Visibility, WhereClause,
+    TypeParamBound, Visibility,
 };
 use tap::Pipe;
 
@@ -17,7 +17,7 @@ use crate::{
         property::PropertyKey,
         type_ident,
         v8::{to_v8_bound, V8Conv},
-        FatalErrors, RecoverableErrors,
+        FatalErrors, MergeGenerics, RecoverableErrors,
     },
     Iterator_,
 };
@@ -98,12 +98,7 @@ impl DeriveInterface for DeriveIterator {
         SomeType { ty, .. }: SomeType,
         OuterType {
             this,
-            generics:
-                Generics {
-                    params,
-                    where_clause,
-                    ..
-                },
+            generics,
             kind,
         }: OuterType,
     ) -> Result<TokenStream> {
@@ -121,10 +116,10 @@ impl DeriveInterface for DeriveIterator {
         };
 
         let value_key = PropertyKey::from("value");
-        let value_getter = V8Conv::default().to_getter();
+        let value_getter = V8Conv::default().to_getter(&Default::default());
 
         let done_key = PropertyKey::from("done");
-        let done_getter = V8Conv::default().to_getter();
+        let done_getter = V8Conv::default().to_getter(&Default::default());
 
         let into_item = item_type.to_cast_from_v8("value", "scope");
 
@@ -173,54 +168,68 @@ impl DeriveInterface for DeriveIterator {
         };
 
         let fn_into_iter = {
-            let precise_capturing = match kind {
-                OuterTypeKind::Impl => quote! { + use<'_, #params> },
-                OuterTypeKind::Trait => quote! {},
-            };
+            let iter_lifetime = quote! { '_iter };
+            let trait_generic = format_ident!("_Inner");
 
-            let outer_type = match kind {
-                OuterTypeKind::Impl => quote! {},
-                OuterTypeKind::Trait => quote! { T, },
+            let capturing = match kind {
+                OuterTypeKind::Impl => quote! { + use<#iter_lifetime> },
+                OuterTypeKind::Trait => quote! {},
             };
 
             let inner_type = match kind {
                 OuterTypeKind::Impl => quote! { #this },
-                OuterTypeKind::Trait => quote! { T },
+                OuterTypeKind::Trait => quote! { #trait_generic },
             };
 
-            let where_bounds = match kind {
-                OuterTypeKind::Impl => quote! { #where_clause },
+            let generics = match kind {
+                OuterTypeKind::Impl => MergeGenerics {
+                    outer: generics,
+                    lifetimes: vec![quote! { #iter_lifetime }],
+                    types: vec![],
+                    bounds: vec![],
+                },
                 OuterTypeKind::Trait => {
-                    let self_bounds = to_v8_bound(type_ident(format_ident!("T")));
-                    let self_bounds = quote! {
-                        #self_bounds,
-                        T: #this,
-                    };
-                    match where_clause {
-                        None => quote! {
-                            where
-                                #self_bounds
-                        },
-                        Some(WhereClause { predicates, .. }) => quote! {
-                            where
-                                #self_bounds
-                                #predicates
-                        },
+                    let outer_args = MergeGenerics {
+                        outer: generics,
+                        lifetimes: vec![],
+                        types: vec![],
+                        bounds: vec![],
+                    }
+                    .arguments();
+                    MergeGenerics {
+                        outer: generics,
+                        lifetimes: vec![quote! { #iter_lifetime }],
+                        types: vec![quote! { #trait_generic }],
+                        bounds: vec![
+                            to_v8_bound(type_ident(trait_generic.clone())).to_token_stream(),
+                            quote! { #trait_generic: #this <#outer_args> },
+                        ],
                     }
                 }
             };
 
+            let params = generics.params();
+            let bounds = generics.bounds();
+            let arguments = generics.arguments();
+
+            let phantom_fields = generics.phantom_fields();
+            let phantom_init = generics.phantom_init();
+
             quote! {
-                #vis fn into_iter(self, rt: &mut JsRuntime)
-                    -> impl Iterator<Item = Result<#return_ty>> #precise_capturing
+                #vis fn into_iter<#iter_lifetime>(
+                    self,
+                    rt: &#iter_lifetime mut JsRuntime,
+                ) -> impl Iterator<Item = Result<#return_ty>> #capturing
                 {
-                    struct Iter<'__rt, #outer_type #params> {
-                        rt: &'__rt mut JsRuntime,
+                    struct Iter <#params> {
+                        rt: &#iter_lifetime mut JsRuntime,
                         inner: #inner_type,
+                        #phantom_fields
                     }
 
-                    impl <#outer_type #params> ::core::iter::Iterator for Iter<'_, #outer_type #params>
-                    #where_bounds
+                    impl <#params> ::core::iter::Iterator for Iter <#arguments>
+                    where
+                        #bounds
                     {
                         type Item = Result<#return_ty>;
 
@@ -229,7 +238,7 @@ impl DeriveInterface for DeriveIterator {
                         }
                     }
 
-                    Iter { rt, inner: self }
+                    Iter { rt, inner: self, #phantom_init }
                 }
             }
         };

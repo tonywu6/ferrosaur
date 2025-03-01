@@ -1,7 +1,7 @@
 use darling::{Error, Result};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Generics, ReturnType, Signature};
+use syn::{ReturnType, Signature};
 use tap::Pipe;
 
 use crate::util::{
@@ -18,11 +18,7 @@ pub fn impl_setter(_: Setter, sig: Signature) -> Result<Vec<TokenStream>> {
 
     let Signature {
         ident,
-        generics: Generics {
-            params,
-            where_clause,
-            ..
-        },
+        generics,
         inputs,
         output,
         ..
@@ -54,13 +50,13 @@ pub fn impl_setter(_: Setter, sig: Signature) -> Result<Vec<TokenStream>> {
     let val_type = V8Conv::from_fn_arg(inputs[2].clone()).and_recover(&mut errors);
 
     let setter = {
-        let setter = val_type.to_setter();
-        let from_key = key_type.to_cast_into_v8(
-            key_name.map(ToString::to_string).unwrap_or_default(),
-            "scope",
-        );
+        let setter = val_type.to_setter(&generics);
+        let from_key = key_name.map(ToString::to_string).unwrap_or_default();
+        let from_key = key_type.to_cast_into_v8(from_key, "scope");
         let key_type = key_type.to_type();
         let val_type = val_type.to_type();
+        let params = &generics.params;
+        let where_ = &generics.where_clause;
         quote! {
             fn #ident <#params> (
                 #self_arg,
@@ -68,7 +64,7 @@ pub fn impl_setter(_: Setter, sig: Signature) -> Result<Vec<TokenStream>> {
                 #val_name: #val_type,
                 _rt: &mut JsRuntime,
             ) -> Result<&Self>
-            #where_clause
+            #where_
             {
                 #setter
                 let scope = &mut _rt.handle_scope();

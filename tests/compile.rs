@@ -1,36 +1,6 @@
 use deno_core::convert::OptionNull;
 use ferrosaur::js;
 
-#[js(global_this)]
-pub struct Global;
-
-#[js(interface)]
-impl Global {
-    #[js(prop)]
-    pub fn console(&self) -> Console {}
-
-    #[js(set)]
-    pub fn declare(&self, name: serde<&str>, value: v8::Global<v8::Value>) {}
-}
-
-#[js(interface)]
-impl Global {
-    #[js(func(name(__cargo_test_stdout__)))]
-    pub fn cargo_test_stdout(&self) -> String {}
-}
-
-#[js(value)]
-struct Console;
-
-#[js(interface)]
-impl Console {
-    #[js(func(name(log)))]
-    pub fn log(&self, ..values: &[v8::Global<v8::Value>]) {}
-
-    #[js(func(name(log)))]
-    pub fn log_message(&self, message: serde<&str>) {}
-}
-
 #[js(module(import("js/mod.js"), fast))]
 pub struct Main;
 
@@ -49,26 +19,31 @@ impl Main {
     pub fn this_checker(&self) -> ThisChecker {}
 }
 
+#[js(interface)]
+pub trait Shape {
+    #[js(func)]
+    fn area(&self) -> serde<f64>;
+
+    #[js(func(Symbol(toPrimitive)))]
+    fn value(&self) -> serde<serde_json::Value>;
+}
+
 #[js(value)]
 pub struct Rectangle;
 
 #[js(interface)]
 impl Rectangle {
-    #[js(prop)]
-    pub fn height(&self) -> serde<f64> {}
-
     #[js(prop(with_setter))]
     pub fn width(&self) -> serde<f64> {}
 
-    #[js(func)]
-    pub fn area(&self) -> serde<f64> {}
-
-    #[js(func(Symbol(toPrimitive)))]
-    pub fn value(&self) -> serde<serde_json::Value> {}
+    #[js(prop)]
+    pub fn height(&self) -> serde<f64> {}
 
     #[js(func(name = "maybeSquare"))]
     pub fn square(&self) -> OptionNull<Rectangle> {}
 }
+
+impl Shape for Rectangle {}
 
 #[js(value)]
 struct ThisChecker;
@@ -123,4 +98,52 @@ struct Fibonacci;
 #[js(iterator)]
 impl Fibonacci {
     type Item = serde<usize>;
+}
+
+#[js(global_this)]
+pub struct Global;
+
+#[js(interface)]
+impl Global {
+    #[js(prop)]
+    pub fn console(&self) -> Console {}
+
+    #[js(get)]
+    pub fn lookup<T: for<'a> FromV8<'a>>(&self, name: serde<&str>) -> T {}
+
+    #[js(set)]
+    pub fn define(&self, name: serde<&str>, value: v8::Global<v8::Value>) {}
+}
+
+#[js(value)]
+struct Console;
+
+#[js(interface)]
+impl Console {
+    #[js(func(name(log)))]
+    pub fn log(&self, ..values: &[v8::Global<v8::Value>]) {}
+
+    #[js(func(name(log)))]
+    pub fn log_message(&self, message: serde<&str>) {}
+}
+
+#[js(interface)]
+impl Global {
+    #[js(func(name(Boolean)))]
+    pub fn boolean(&self, v: serde<bool>) -> v8::Global<v8::Value> {}
+
+    #[js(func(name(Number)))]
+    pub fn number(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
+
+    #[js(func(name(String)))]
+    pub fn string(&self, v: serde<&str>) -> v8::Global<v8::Value> {}
+
+    #[js(new(class(Date)))]
+    pub fn date(&self, v: serde<f64>) -> v8::Global<v8::Value> {}
+}
+
+#[js(interface)]
+impl Global {
+    #[js(func(name(__cargo_test_stdout__)))]
+    pub fn cargo_test_stdout(&self) -> String {}
 }

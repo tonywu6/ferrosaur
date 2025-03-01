@@ -6,14 +6,14 @@ use syn::{
     punctuated::Punctuated,
     spanned::Spanned,
     token::Paren,
-    AngleBracketedGenericArguments, BoundLifetimes, FnArg, GenericArgument, GenericParam, Ident,
-    Lifetime, LifetimeParam, Meta, Path, PathArguments, PathSegment, PredicateType, ReturnType,
-    Token, TraitBound, TraitBoundModifier, Type, TypeParamBound, TypePath, TypeReference,
-    TypeTuple, WherePredicate,
+    AngleBracketedGenericArguments, BoundLifetimes, FnArg, GenericArgument, GenericParam, Generics,
+    Ident, Lifetime, LifetimeParam, Meta, Path, PathArguments, PathSegment, PredicateType,
+    ReturnType, Token, TraitBound, TraitBoundModifier, Type, TypeParamBound, TypePath,
+    TypeReference, TypeTuple, WherePredicate,
 };
 use tap::{Pipe, Tap};
 
-use super::{type_ident, unwrap_v8_local, Caveat};
+use super::{type_ident, unwrap_v8_local, Caveat, MergeGenerics};
 
 #[derive(Debug, Clone)]
 pub enum V8Conv {
@@ -151,21 +151,22 @@ impl V8Conv {
         }
     }
 
-    pub fn to_getter(&self) -> TokenStream {
+    pub fn to_getter(&self, generics: &Generics) -> TokenStream {
         let unwrap_data = unwrap_v8_local("data");
         let from_data = self.to_cast_from_v8("data", "scope");
         let return_ty = self.to_type();
+        let generics = Self::generics(generics);
+        let params = generics.params();
+        let bounds = generics.bounds();
         quote! {
             #[inline(always)]
-            fn getter<'a, K, T>(
-                scope: &mut v8::HandleScope<'a>,
-                this: T,
-                prop: K,
+            fn getter<#params>(
+                scope: &mut v8::HandleScope<'_a>,
+                this: _T,
+                prop: _K,
             ) -> Result<#return_ty>
             where
-                K: Into<v8::Local<'a, v8::Value>>,
-                T: TryInto<v8::Local<'a, v8::Object>>,
-                T::Error: ::core::error::Error + Send + Sync + 'static
+                #bounds
             {
                 let scope = &mut v8::TryCatch::new(scope);
                 let this = TryInto::try_into(this)
@@ -178,21 +179,22 @@ impl V8Conv {
         }
     }
 
-    pub fn to_setter(&self) -> TokenStream {
+    pub fn to_setter(&self, generics: &Generics) -> TokenStream {
         let into_data = self.to_cast_into_v8("data", "scope");
         let data_type = self.to_type();
+        let generics = Self::generics(generics);
+        let params = generics.params();
+        let bounds = generics.bounds();
         quote! {
             #[inline(always)]
-            fn setter<'a, K, T>(
-                scope: &mut v8::HandleScope<'a>,
-                this: T,
-                prop: K,
+            fn setter<#params>(
+                scope: &mut v8::HandleScope<'_a>,
+                this: _T,
+                prop: _K,
                 data: #data_type
             ) -> Result<()>
             where
-                K: Into<v8::Local<'a, v8::Value>>,
-                T: TryInto<v8::Local<'a, v8::Object>>,
-                T::Error: ::core::error::Error + Send + Sync + 'static
+                #bounds
             {
                 let data = #into_data
                     .context("failed to convert into v8 value")?;
@@ -202,6 +204,19 @@ impl V8Conv {
                 this.set(scope, prop, data);
                 Ok(())
             }
+        }
+    }
+
+    fn generics(outer: &Generics) -> MergeGenerics {
+        MergeGenerics {
+            outer,
+            lifetimes: vec![quote! { '_a }],
+            types: vec![quote! { _K }, quote! { _T }],
+            bounds: vec![
+                quote! { _K: Into<v8::Local<'_a, v8::Value>> },
+                quote! { _T: TryInto<v8::Local<'_a, v8::Object>> },
+                quote! { _T::Error: ::core::error::Error + Send + Sync + 'static },
+            ],
         }
     }
 
@@ -422,7 +437,7 @@ impl FromMeta for V8InnerType {
 }
 
 pub fn to_v8_bound(self_ty: Type) -> WherePredicate {
-    let a = Lifetime::new("'a", Span::call_site());
+    let a = Lifetime::new("'_v8", Span::call_site());
 
     let for_a = LifetimeParam {
         lifetime: a.clone(),
