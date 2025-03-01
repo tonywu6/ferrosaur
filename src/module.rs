@@ -52,7 +52,8 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
         #[allow(unused)]
         use deno_core::{
             convert::ToV8,
-            anyhow::{Context, Result}, ascii_str_include, v8, FastStaticString,
+            anyhow::{Context, Result}, ascii_str_include, v8,
+            FastStaticString, FastString,
             JsRuntime, ModuleId, ModuleSpecifier,
         };
     };
@@ -85,12 +86,12 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
         }
     };
 
-    let preload_ty = match fast {
+    let preloaded = match fast {
         Some(FastString::Fast | FastString::FastUnsafeDebug) => quote! {
-            Result<(ModuleSpecifier, FastStaticString)>
+            Ok((Self::module_url()?, FastString::from(Self::MODULE_SRC)))
         },
         None => quote! {
-            Result<(ModuleSpecifier, &'static str)>
+            Ok((Self::module_url()?, FastString::from_static(Self::MODULE_SRC)))
         },
     };
 
@@ -127,7 +128,7 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
 
     let fn_url = quote! {
         #[inline(always)]
-        pub fn url() -> Result<ModuleSpecifier> {
+        pub fn module_url() -> Result<ModuleSpecifier> {
             #fn_url
             url().context("failed to build module url")
         }
@@ -178,22 +179,22 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
 
                 pub async fn new(rt: &mut JsRuntime) -> Result<Self> {
                     let id = rt
-                        .#load_module_from_code(&Self::url()?, Self::MODULE_SRC)
+                        .#load_module_from_code(&Self::module_url()?, Self::MODULE_SRC)
                         .await?;
-                    Self::evaluate(rt, id).await
+                    Self::mod_evaluate(rt, id).await
                 }
 
                 pub async fn new_preloaded(rt: &mut JsRuntime) -> Result<Self> {
-                    let id = rt.#load_module_from_loader(&Self::url()?).await?;
-                    Self::evaluate(rt, id).await
+                    let id = rt.#load_module_from_loader(&Self::module_url()?).await?;
+                    Self::mod_evaluate(rt, id).await
                 }
 
-                pub fn preload() -> #preload_ty {
-                    Ok((Self::url()?, Self::MODULE_SRC))
+                pub fn preloaded() -> Result<(ModuleSpecifier, FastString)> {
+                    #preloaded
                 }
 
                 #[inline(always)]
-                async fn evaluate(rt: &mut JsRuntime, id: ModuleId) -> Result<Self> {
+                async fn mod_evaluate(rt: &mut JsRuntime, id: ModuleId) -> Result<Self> {
                     Ok(Self({
                         rt.mod_evaluate(id).await?;
                         rt.get_module_namespace(id)?

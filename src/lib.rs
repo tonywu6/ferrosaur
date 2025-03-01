@@ -9,7 +9,7 @@ use tap::Pipe;
 
 mod fast_string;
 mod function;
-mod global_this;
+mod global;
 mod interface;
 mod iterator;
 mod module;
@@ -40,7 +40,7 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
             module::module(module, item).error_at::<JsItem, Module>()
         }
         JsItem::GlobalThis(FlagLike(global_this)) => {
-            global_this::global_this(global_this, item).error_at::<JsItem, GlobalThis>()
+            global::global_this(global_this, item).error_at::<JsItem, GlobalThis>()
         }
         JsItem::Interface(FlagLike(interface)) => {
             interface::interface(interface, item).error_at::<JsItem, Interface>()

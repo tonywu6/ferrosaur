@@ -3,7 +3,7 @@ use anyhow::Result;
 mod compile;
 mod util;
 
-use crate::{compile::Iter, util::deno};
+use crate::{compile::modules::Iter, util::deno};
 
 #[tokio::test]
 async fn test_iterator() -> Result<()> {

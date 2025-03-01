@@ -163,7 +163,7 @@ impl InterfaceLike {
                 TraitItem::Verbatim(tokens) => {
                     let span = tokens.span();
                     if let Ok(ImplFnInTrait { vis, .. }) = ImplFnInTrait::parse.parse2(tokens) {
-                        Error::custom("fn in traits should have no visibility modifier")
+                        Error::custom("fn in traits should have no visibility qualifier")
                             .with_span(&vis)
                             .pipe(|err| errors.handle(Err(err)))
                     } else {
@@ -236,7 +236,7 @@ impl Parse for InterfaceLike {
         if lookahead.peek(Token![impl]) {
             let mut item = ItemImpl::parse(input)?;
             if !matches!(vis, Visibility::Inherited) {
-                syn::Error::new_spanned(vis, "unexpected visibility modifier").pipe(Err)
+                syn::Error::new_spanned(vis, "unexpected visibility qualifier").pipe(Err)
             } else {
                 item.attrs = attrs;
                 Ok(InterfaceLike::Impl(item))

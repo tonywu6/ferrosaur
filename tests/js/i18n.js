@@ -10,3 +10,8 @@ export {
   deDE as "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern",
   zhCN as "天地玄黄，宇宙洪荒",
 };
+
+export async function messages() {
+  const self = await import("./i18n.js");
+  return new Map(Object.entries(self).filter(([, v]) => typeof v === "string"));
+}

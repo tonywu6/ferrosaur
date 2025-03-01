@@ -321,7 +321,7 @@ fn no_where_clause(generics: &Generics) -> Result<()> {
 
 fn no_visibility(vis: Visibility) -> Result<()> {
     if matches!(vis, Visibility::Public(_) | Visibility::Restricted(_)) {
-        Error::custom("macro ignores visibility modifiers in this location")
+        Error::custom("macro ignores visibility qualifiers in this location")
             .with_span(&vis)
             .pipe(Err)
     } else {

@@ -8,7 +8,11 @@ mod compile;
 mod util;
 
 use crate::{
-    compile::{Global, I18n, Main, Shape},
+    compile::{
+        global::Global,
+        modules::{I18n, Main},
+        traits::Shape,
+    },
     util::{deno, with_portable_snapshot},
 };
 
@@ -47,7 +51,7 @@ async fn test_this() -> Result<()> {
 
     {
         let scope = &mut rt.handle_scope();
-        let checker = v8::Local::new(scope, checker.as_ref());
+        let checker = v8::Local::new(scope, checker.as_ref()).cast();
         let main = v8::Local::new(scope, main.as_ref()).into();
         let this_1 = v8::Local::new(scope, this_1);
         let this_2 = v8::Local::new(scope, this_2);
@@ -103,8 +107,9 @@ async fn test_indexing_set() -> Result<()> {
     let rt = &mut deno().await?;
 
     let global = Global::new(rt);
+    let i18n = I18n::new(rt).await?;
 
-    global.define("foo", I18n::new(rt).await?.try_cast_global(rt)?, rt)?;
+    global.define("foo", i18n.try_cast_global(rt)?, rt)?;
 
     {
         let typeof_ = rt.execute_script("", "typeof foo")?;

@@ -1,9 +1,11 @@
-use std::path::Path;
+use std::{path::Path, rc::Rc};
 
 use anyhow::Result;
 use deno_core::{JsRuntime, RuntimeOptions};
 use deno_web::TimersPermission;
 use tap::Tap;
+
+use crate::compile::modules;
 
 deno_core::extension!(
     test_fixture,
@@ -14,6 +16,7 @@ deno_core::extension!(
 
 pub async fn deno() -> Result<JsRuntime> {
     Ok(JsRuntime::new(RuntimeOptions {
+        module_loader: Some(Rc::new(modules()?)),
         extensions: vec![
             deno_console::deno_console::init_ops_and_esm(),
             deno_webidl::deno_webidl::init_ops_and_esm(),

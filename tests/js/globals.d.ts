@@ -1,5 +1,9 @@
 declare module "ext:*" {}
 
+declare module "ext:deno_url/00_url.js" {
+  export const URL: typeof globalThis.URL;
+}
+
 declare module "ext:deno_console/01_console.js" {
   export class Console {
     constructor(fn: (msg: string, level: number) => void);
