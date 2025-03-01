@@ -54,6 +54,9 @@ pub mod values {
 
     #[js(value(of_type(v8::Map)))]
     pub struct Messages;
+
+    #[js(value)]
+    pub struct MessageIter;
 }
 
 pub mod props {
@@ -97,7 +100,7 @@ pub mod funcs {
     use super::{
         global::Global,
         modules::{Cwd, I18n, Iter, Main},
-        values::{Console, Fibonacci, Messages, NavigateFn, Rectangle, ThisChecker},
+        values::{Console, Fibonacci, MessageIter, Messages, NavigateFn, Rectangle, ThisChecker},
     };
 
     #[js(interface)]
@@ -177,6 +180,12 @@ pub mod funcs {
         #[js(func)]
         pub async fn messages(&self) -> Messages {}
     }
+
+    #[js(interface)]
+    impl Messages {
+        #[js(func(Symbol(iterator)))]
+        pub fn entries(&self) -> MessageIter {}
+    }
 }
 
 pub mod ctors {
@@ -217,7 +226,7 @@ pub mod traits {
     use ferrosaur::js;
     use serde::de::DeserializeOwned;
 
-    use super::values::{Messages, Rectangle};
+    use super::values::{MessageIter, Rectangle};
 
     #[js(interface)]
     pub trait Shape {
@@ -239,7 +248,7 @@ pub mod traits {
         type Item = serde<(K, V)>;
     }
 
-    impl Entries<String, String> for Messages {}
+    impl Entries<String, String> for MessageIter {}
 }
 
 pub mod indexing {
