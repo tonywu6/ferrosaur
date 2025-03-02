@@ -29,7 +29,7 @@ let result = module.add(66.0, 3.0)?;
 ```
 
 `ferrosaur` derives structs and functions from attributes (à la [wasm-bindgen])
-that you can use with your [`JsRuntime`][JsRuntime], .
+that you can use with your [`JsRuntime`][JsRuntime].
 
 [JsRuntime]: https://docs.rs/deno_core/0.338.0/deno_core/struct.JsRuntime.html
 [wasm-bindgen]: https://github.com/rustwasm/wasm-bindgen#example

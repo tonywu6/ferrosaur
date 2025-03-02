@@ -3,33 +3,28 @@
 import * as esbuild from "esbuild";
 
 /**
- * @param {string[]} entryPoints
+ * @param {Omit<
+ *  esbuild.BuildOptions,
+ *  'format' | 'platform'| 'target' | 'metafile'
+ * >} options
  */
-export async function buildExample(entryPoints) {
-  const result = await esbuild.build({
-    entryPoints,
-    outdir: "dist",
-    metafile: true,
-
+export async function build(options) {
+  const {
+    metafile: { inputs },
+  } = await esbuild.build({
+    ...options,
     format: "esm",
     platform: "neutral",
     target: ["esnext", "deno2"],
-    external: ["node:module", "node:process", "fs", "path", "os", "inspector"],
-    mainFields: ["module", "main"],
-
-    bundle: true,
-    minify: true,
-    treeShaking: true,
+    metafile: true,
   });
-
-  Object.keys(result.metafile.inputs).forEach((path) => {
+  for (const path of Object.keys(inputs)) {
     console.log(`cargo::rerun-if-changed=${path}`);
-  });
+  }
 }
 
 /**
  * @param {string} path
  * @param {ImportMeta} meta
- * @returns
  */
 export const relpath = (path, meta) => new URL(path, meta.url).pathname;

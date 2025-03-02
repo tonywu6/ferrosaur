@@ -1,6 +1,4 @@
-import "../../_runtime/src/globals.ts";
-
-import * as ts from "typescript";
+import ts from "npm:typescript";
 
 export function createProgram(...files: string[]) {
   const host = createCompilerHost();
@@ -20,9 +18,13 @@ export function createProgram(...files: string[]) {
   );
 
   return {
-    printDiagnostics: () => {
+    printDiagnostics: (colored = true) => {
       const diagnostics = program.getSemanticDiagnostics();
-      return ts.formatDiagnosticsWithColorAndContext(diagnostics, diagnosticsHost);
+      if (colored) {
+        return ts.formatDiagnosticsWithColorAndContext(diagnostics, diagnosticsHost);
+      } else {
+        return ts.formatDiagnostics(diagnostics, diagnosticsHost);
+      }
     },
   };
 }
@@ -34,10 +36,12 @@ function createCompilerHost(): ts.CompilerHost {
 
   const runtimeDir = new URL(".", import.meta.url).pathname;
 
+  host.getDefaultLibLocation = () => runtimeDir;
+
   host.readFile = (fileName) => {
     if (fileName.startsWith(runtimeDir)) {
       const suffix = fileName.slice(runtimeDir.length);
-      const content = globalThis.__TYPESCRIPT_LIB__?.[suffix];
+      const content = globalThis.TYPESCRIPT_LIB?.[suffix];
       if (typeof content === "string") {
         return content;
       }
@@ -51,12 +55,14 @@ function createCompilerHost(): ts.CompilerHost {
 declare global {
   namespace globalThis {
     // deno-lint-ignore no-var
-    var __TYPESCRIPT_LIB__: Record<string, string> | undefined;
+    var TYPESCRIPT_LIB: Record<string, string> | undefined;
+    // deno-lint-ignore no-var
+    var CARGO_MANIFEST_DIR: string | undefined;
   }
 }
 
 const diagnosticsHost: ts.FormatDiagnosticsHost = {
-  getCurrentDirectory: () => Deno.cwd(),
+  getCurrentDirectory: () => globalThis.CARGO_MANIFEST_DIR || Deno.cwd(),
   getCanonicalFileName: (name) => name,
   getNewLine: () => "\n",
 };

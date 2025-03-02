@@ -2493,8 +2493,10 @@ dependencies = [
  "anyhow",
  "example-runtime",
  "ferrosaur",
+ "insta",
  "proc-macro2",
  "quote",
+ "serde_json",
  "tokio",
 ]
 
@@ -2505,7 +2507,9 @@ dependencies = [
  "anyhow",
  "bat",
  "example-runtime",
+ "example-ts",
  "ferrosaur",
+ "insta",
  "tokio",
 ]
 

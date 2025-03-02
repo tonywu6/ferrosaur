@@ -53,7 +53,7 @@ fn main() -> Result<()> {
             FastString, ascii_str, ascii_str_include,
         };
 
-        pub fn dts(scope: &mut v8::HandleScope) -> Result<v8::Global<v8::Value>> {
+        pub fn dts(scope: &mut v8::HandleScope) -> Result<v8::Global<v8::Object>> {
             let obj = v8::Object::new(scope);
             let files = [ #(#lib_dts),* ];
             for (lib, dts) in files {
@@ -61,7 +61,7 @@ fn main() -> Result<()> {
                 let dts = dts.v8_string(scope)?;
                 obj.set(scope, lib.into(), dts.into()).unwrap();
             }
-            Ok(v8::Global::new(scope, obj.cast()))
+            Ok(v8::Global::new(scope, obj))
         }
     };
 

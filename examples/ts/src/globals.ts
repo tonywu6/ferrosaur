@@ -1,8 +1,10 @@
 import { createRequire } from "node:module";
 
-const require = createRequire(import.meta.url);
-const __filename = import.meta.filename;
-const __dirname = import.meta.dirname;
+const url = new URL("file:///globals.js");
+
+const require = createRequire(url);
+const __filename = url.pathname;
+const __dirname = new URL(".", url).pathname;
 
 Object.entries({
   require,

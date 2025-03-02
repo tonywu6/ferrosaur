@@ -13,7 +13,9 @@ bat = { version = "0.24.0", features = [
   "regex-fancy",
 ], default-features = false }
 example-runtime = { path = "../_runtime" }
+example-ts = { path = "../ts" }
 ferrosaur = { workspace = true }
+insta = { workspace = true }
 tokio = { workspace = true }
 
 [build-dependencies]
