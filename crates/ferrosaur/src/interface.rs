@@ -23,17 +23,18 @@ use crate::{
 };
 
 mod func;
-mod get;
+mod get_index;
 mod prop;
-mod set;
+mod set_index;
 
 #[derive(Debug, Clone, FromMeta)]
+#[darling(rename_all = "snake_case")]
 enum JsProperty {
     Prop(FlagLike<Property>),
     Func(FlagLike<Function>),
     New(FlagLike<Constructor>),
-    Get(FlagLike<Getter>),
-    Set(FlagLike<Setter>),
+    GetIndex(FlagLike<Getter>),
+    SetIndex(FlagLike<Setter>),
 }
 
 type PropKeyString = StringLike<String>;
@@ -129,11 +130,11 @@ impl DeriveInterface for DeriveProperties {
             JsProperty::New(FlagLike(ctor)) => {
                 func::impl_function(ctor.into(), sig).error_at::<JsProperty, Constructor>()
             }
-            JsProperty::Get(FlagLike(getter)) => {
-                get::impl_getter(getter, sig).error_at::<JsProperty, Getter>()
+            JsProperty::GetIndex(FlagLike(getter)) => {
+                get_index::impl_getter(getter, sig).error_at::<JsProperty, Getter>()
             }
-            JsProperty::Set(FlagLike(setter)) => {
-                set::impl_setter(setter, sig).error_at::<JsProperty, Setter>()
+            JsProperty::SetIndex(FlagLike(setter)) => {
+                set_index::impl_setter(setter, sig).error_at::<JsProperty, Setter>()
             }
         }
         .or_fatal(errors)?;
@@ -254,7 +255,7 @@ impl FlagName for Constructor {
 }
 
 impl FlagName for Getter {
-    const PREFIX: &'static str = "get";
+    const PREFIX: &'static str = "get_index";
 
     fn unit() -> Result<Self> {
         Ok(Self)
@@ -262,7 +263,7 @@ impl FlagName for Getter {
 }
 
 impl FlagName for Setter {
-    const PREFIX: &'static str = "set";
+    const PREFIX: &'static str = "set_index";
 
     fn unit() -> Result<Self> {
         Ok(Self)

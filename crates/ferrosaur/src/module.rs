@@ -9,12 +9,12 @@ use syn::{
 use crate::{
     util::{
         inner_mod_name,
-        unary::Unary,
+        positional::Positional,
         use_prelude,
         v8::snippets::{impl_as_ref_inner, impl_global_cast, impl_to_v8},
         FatalErrors, NoGenerics,
     },
-    FastString, ImportMetaUrl, Module,
+    FastString, ImportMetaUrl, Module, ModuleOptions,
 };
 
 #[derive(Debug, Clone, FromDeriveInput)]
@@ -37,12 +37,14 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
         ident, vis, attrs, ..
     } = item;
 
-    let Module {
-        import: Unary(import),
-        url,
-        side_module,
-        fast,
-    } = module;
+    let Module(Positional {
+        head: import,
+        rest: ModuleOptions {
+            url,
+            side_module,
+            fast,
+        },
+    }) = module;
 
     let uses = quote! {
         #[allow(unused)]

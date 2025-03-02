@@ -48,7 +48,7 @@ impl Calculator {
     fn print(&self) -> String {}
 }
 
-#[js(module(import("./main.js"), fast))]
+#[js(module("./main.js", fast))]
 struct Main;
 
 #[js(interface)]

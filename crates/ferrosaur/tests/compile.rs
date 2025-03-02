@@ -6,20 +6,20 @@ use deno_core::StaticModuleLoader;
 pub mod modules {
     use ferrosaur::js;
 
-    #[js(module(import("js/mod.js"), fast))]
+    #[js(module("js/mod.js", fast))]
     pub struct Main;
 
-    #[js(module(import("js/i18n.js"), side_module))]
+    #[js(module("js/i18n.js", side_module))]
     pub struct I18n;
 
-    #[js(module(import("js/iter.js"), fast, side_module))]
+    #[js(module("js/iter.js", fast, side_module))]
     pub struct Iter;
 
-    #[js(module(import("js/cwd.js"), url(cwd), fast, side_module))]
+    #[js(module("js/cwd.js", url(cwd), fast, side_module))]
     pub struct Cwd;
 
     #[js(module(
-        import("js/pkg.js"),
+        "js/pkg.js",
         url("cargo:tests/js/pkg"),
         fast(unsafe_debug),
         side_module
@@ -258,16 +258,16 @@ pub mod indexing {
 
     #[js(interface)]
     impl I18n {
-        #[js(get)]
+        #[js(get_index)]
         pub fn i18n(&self, key: serde<&str>) -> serde<String> {}
     }
 
     #[js(interface)]
     impl Global {
-        #[js(get)]
+        #[js(get_index)]
         pub fn lookup<T: for<'a> FromV8<'a>>(&self, name: serde<&str>) -> T {}
 
-        #[js(set)]
+        #[js(set_index)]
         pub fn define(&self, name: serde<&str>, value: v8::Global<v8::Value>) {}
     }
 }

@@ -1,3 +1,4 @@
+#![cfg_attr(not(doctest), doc = include_str!("../../../README.md"))]
 use darling::{
     ast::NestedMeta,
     util::{path_to_string, Flag},
@@ -18,11 +19,14 @@ mod value;
 
 use crate::util::{
     flag::{FlagEnum, FlagLike, FlagName},
+    positional::Positional,
     unary::Unary,
     v8::V8InnerType,
     ErrorLocation, FatalErrors, TokenStreamResult,
 };
 
+/// Macro for deriving `struct`s and `impl`s for use with `deno_core`.
+/// Please see the [crate-level documentation](./index.html).
 #[proc_macro_attribute]
 pub fn js(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     js_item(attr.into(), item.into()).or_error().into()
@@ -79,8 +83,10 @@ enum JsItem {
 }
 
 #[derive(Debug, Clone, FromMeta)]
-struct Module {
-    import: Unary<String>,
+struct Module(Positional<String, ModuleOptions>);
+
+#[derive(Debug, Clone, FromMeta)]
+struct ModuleOptions {
     #[darling(default)]
     url: ImportMetaUrl,
     side_module: Flag,

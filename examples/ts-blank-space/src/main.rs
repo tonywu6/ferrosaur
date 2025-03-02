@@ -8,7 +8,7 @@ use example_runtime::{
 };
 use ferrosaur::js;
 
-#[js(module(import("../dist/main.js"), fast(unsafe_debug)))]
+#[js(module("../dist/main.js", fast(unsafe_debug)))]
 struct BlankSpace;
 
 #[js(interface)]

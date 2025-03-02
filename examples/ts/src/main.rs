@@ -7,7 +7,7 @@ use example_runtime::{
 };
 use ferrosaur::js;
 
-#[js(module(import("../dist/main.js"), fast(unsafe_debug)))]
+#[js(module("../dist/main.js", fast(unsafe_debug)))]
 struct TypeScript;
 
 #[js(interface)]
@@ -30,7 +30,7 @@ struct Global;
 
 #[js(interface)]
 impl Global {
-    #[js(set)]
+    #[js(set_index)]
     fn define(&self, name: serde<&str>, value: v8::Global<v8::Value>) {}
 }
 
