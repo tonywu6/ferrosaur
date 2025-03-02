@@ -1,0 +1,16 @@
+[package]
+edition = "2024"
+name = "example-ts"
+publish = false
+version = "0.1.0"
+
+[dependencies]
+anyhow = { workspace = true }
+example-runtime = { path = "../_runtime" }
+ferrosaur = { workspace = true }
+tokio = { workspace = true }
+
+[build-dependencies]
+anyhow = { workspace = true }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }

@@ -1,7 +1,7 @@
 use std::{rc::Rc, sync::Arc};
 
 use anyhow::Result;
-pub use deno_runtime::deno_core::{self, serde_v8, v8};
+pub use deno_runtime::deno_core;
 use deno_runtime::{
     deno_core::{ModuleSpecifier, StaticModuleLoader},
     deno_fs::RealFs,

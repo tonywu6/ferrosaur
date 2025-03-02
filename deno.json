@@ -1,6 +1,7 @@
 {
   "imports": {
     "esbuild": "npm:esbuild@^0.25.0",
+    "ts-blank-space": "npm:ts-blank-space@^0.6.0",
     "typescript": "npm:typescript@^5.7.3"
   },
   "lint": {

@@ -1,4 +1,4 @@
-import "./globals.ts";
+import "../../_runtime/src/globals.ts";
 
 import * as ts from "typescript";
 
@@ -27,7 +27,7 @@ export function createProgram(...files: string[]) {
   };
 }
 
-function createCompilerHost() {
+function createCompilerHost(): ts.CompilerHost {
   const host = ts.createCompilerHost({});
 
   const { readFile } = host;

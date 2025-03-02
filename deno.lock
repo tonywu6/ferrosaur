@@ -3,6 +3,7 @@
   "specifiers": {
     "npm:@types/node@*": "22.5.4",
     "npm:esbuild@0.25": "0.25.0",
+    "npm:ts-blank-space@0.6": "0.6.0",
     "npm:typescript@^5.7.3": "5.8.2"
   },
   "npm": {
@@ -117,6 +118,15 @@
         "@esbuild/win32-x64"
       ]
     },
+    "ts-blank-space@0.6.0": {
+      "integrity": "sha512-/idfg2ezyTe9YjfLPoFEjFnBCM0rnB1yp64q7+ujaz4UwBSasA28hiOW3FoRLXLpNMtwE3JlnuLZdOUoZNxhrQ==",
+      "dependencies": [
+        "typescript@5.7.3"
+      ]
+    },
+    "typescript@5.7.3": {
+      "integrity": "sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw=="
+    },
     "typescript@5.8.2": {
       "integrity": "sha512-aJn6wq13/afZp/jT9QZmwEjDqqvSGp1VT5GVg+f/t6/oVyrgXM6BY1h9BRh/O5p3PlUPAe+WuiEZOmb/49RqoQ=="
     },
@@ -127,6 +137,7 @@
   "workspace": {
     "dependencies": [
       "npm:esbuild@0.25",
+      "npm:ts-blank-space@0.6",
       "npm:typescript@^5.7.3"
     ]
   }
