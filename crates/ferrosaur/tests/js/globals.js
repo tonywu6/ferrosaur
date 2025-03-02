@@ -36,27 +36,25 @@ const { console, __cargo_test_stdout__ } = (() => {
 
   const console = new Console((msg) => (stdout += msg));
 
+  const __cargo_test_stdout__ = () => stdout;
+
   setNoColorFns(
     () => true,
     () => true,
   );
 
-  const __cargo_test_stdout__ = () => stdout;
-
   return { console, __cargo_test_stdout__ };
 })();
 
-const items = {
+Object.entries({
   URL,
-  setTimeout,
   console,
+  setTimeout,
   __cargo_test_stdout__,
-};
-
-Object.entries(items).forEach(([key, value]) =>
+}).forEach(([key, value]) =>
   Object.defineProperty(globalThis, key, {
-    value,
+    get: () => value,
     configurable: false,
-    writable: false,
+    enumerable: true,
   }),
 );

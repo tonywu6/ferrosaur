@@ -13,7 +13,7 @@ use crate::{
 
 #[tokio::test]
 async fn test_iterator() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let iter = Iter::new(rt).await?;
 
@@ -32,7 +32,7 @@ async fn test_iterator() -> Result<()> {
 
 #[tokio::test]
 async fn test_iterator_trait() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let i18n = I18n::new(rt).await?;
 

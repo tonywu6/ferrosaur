@@ -18,7 +18,7 @@ use crate::{
 
 #[tokio::test]
 async fn test_functions() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let main = Main::new(rt).await?;
 
@@ -39,7 +39,7 @@ async fn test_functions() -> Result<()> {
 
 #[tokio::test]
 async fn test_this() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let main = Main::new(rt).await?;
 
@@ -66,7 +66,7 @@ async fn test_this() -> Result<()> {
 
 #[tokio::test]
 async fn test_promise() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let main = Main::new(rt).await?;
 
@@ -83,7 +83,7 @@ async fn test_promise() -> Result<()> {
 
 #[tokio::test]
 async fn test_indexing_get() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let i18n = I18n::new(rt).await?;
 
@@ -104,7 +104,7 @@ async fn test_indexing_get() -> Result<()> {
 
 #[tokio::test]
 async fn test_indexing_set() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let global = Global::new(rt);
     let i18n = I18n::new(rt).await?;
@@ -123,7 +123,7 @@ async fn test_indexing_set() -> Result<()> {
 
 #[tokio::test]
 async fn test_callback() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let main = Main::new(rt).await?;
     let global = Global::new(rt);
@@ -139,7 +139,7 @@ async fn test_callback() -> Result<()> {
 
 #[tokio::test]
 async fn test_variadic_fn() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let global = Global::new(rt);
 

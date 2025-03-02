@@ -1,0 +1,11 @@
+[package]
+edition = "2024"
+name = "example-calculator"
+publish = false
+version = "0.1.0"
+
+[dependencies]
+anyhow = { workspace = true }
+deno_core = { workspace = true }
+ferrosaur = { workspace = true }
+tokio = { workspace = true }

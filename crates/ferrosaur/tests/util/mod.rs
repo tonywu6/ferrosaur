@@ -14,8 +14,8 @@ deno_core::extension!(
     esm = ["ext:globals.js" = "tests/js/globals.js"]
 );
 
-pub async fn deno() -> Result<JsRuntime> {
-    Ok(JsRuntime::new(RuntimeOptions {
+pub fn deno() -> Result<JsRuntime> {
+    Ok(JsRuntime::try_new(RuntimeOptions {
         module_loader: Some(Rc::new(modules()?)),
         extensions: vec![
             deno_console::deno_console::init_ops_and_esm(),
@@ -25,7 +25,7 @@ pub async fn deno() -> Result<JsRuntime> {
             test_fixture::init_ops_and_esm(),
         ],
         ..Default::default()
-    }))
+    })?)
 }
 
 struct Permissions;
@@ -39,11 +39,7 @@ impl TimersPermission for Permissions {
 #[allow(unused)]
 pub fn with_portable_snapshot<T: FnOnce()>(cb: T, module: &'static str) -> Result<()> {
     let snapshot_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join(file!())
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
+        .join("tests")
         .join("snapshots");
 
     let path = module

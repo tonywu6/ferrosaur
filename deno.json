@@ -1,6 +1,5 @@
 {
   "imports": {
-    "@types/node": "npm:@types/node@^22.13.4",
     "esbuild": "npm:esbuild@^0.25.0",
     "typescript": "npm:typescript@^5.7.3"
   },

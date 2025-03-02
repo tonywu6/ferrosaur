@@ -10,7 +10,7 @@ use self::{compile::modules::Cwd, util::deno};
 
 #[tokio::test]
 async fn test_import_url() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let cargo_toml = Cwd::new(rt)
         .await?
@@ -25,7 +25,7 @@ async fn test_import_url() -> Result<()> {
 
 #[tokio::test]
 async fn test_arbitrary_url() -> Result<()> {
-    let rt = &mut deno().await?;
+    let rt = &mut deno()?;
 
     let version = Cwd::new(rt).await?.pkg_version(rt).await?;
 
