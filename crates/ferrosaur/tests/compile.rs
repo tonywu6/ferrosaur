@@ -9,21 +9,16 @@ pub mod modules {
     #[js(module("js/mod.js", fast))]
     pub struct Main;
 
-    #[js(module("js/i18n.js", side_module))]
+    #[js(module("js/i18n.js"))]
     pub struct I18n;
 
-    #[js(module("js/iter.js", fast, side_module))]
+    #[js(module("js/iter.js", fast))]
     pub struct Iter;
 
-    #[js(module("js/cwd.js", url(cwd), fast, side_module))]
+    #[js(module("js/cwd.js", url(cwd), fast))]
     pub struct Cwd;
 
-    #[js(module(
-        "js/pkg.js",
-        url("cargo:tests/js/pkg"),
-        fast(unsafe_debug),
-        side_module
-    ))]
+    #[js(module("js/pkg.js", url("cargo:tests/js/pkg"), fast(unsafe_debug)))]
     pub struct Pkg;
 }
 

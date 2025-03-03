@@ -3,12 +3,7 @@ use ferrosaur::js;
 
 use example_runtime::deno_core::{self, JsRuntime};
 
-#[js(module(
-    "../dist/typescript.js",
-    url("npm:typescript"),
-    side_module,
-    fast(unsafe_debug)
-))]
+#[js(module("../dist/typescript.js", url("npm:typescript"), fast(unsafe_debug)))]
 pub struct TypeScript;
 
 #[js(interface)]

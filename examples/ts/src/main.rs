@@ -11,9 +11,9 @@ async fn main() -> Result<()> {
 
     inject_env_vars(rt)?;
 
-    TypeScript::new(rt).await?;
+    TypeScript::side_module(rt).await?;
 
-    let ts = Example::new(rt).await?;
+    let ts = Example::main_module(rt).await?;
 
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src/lib.ts")

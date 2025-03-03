@@ -23,11 +23,11 @@ impl Main {
 async fn main() -> Result<()> {
     let rt = &mut deno(Main::module_url()?)?.js_runtime;
 
-    TypeScript::new(rt).await?;
+    TypeScript::side_module(rt).await?;
 
     inject_env_vars(rt)?;
 
-    let ts = Main::new(rt).await?;
+    let ts = Main::main_module(rt).await?;
 
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ts/src/lib.ts");
 

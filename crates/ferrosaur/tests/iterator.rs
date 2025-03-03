@@ -15,7 +15,7 @@ use crate::{
 async fn test_iterator() -> Result<()> {
     let rt = &mut deno()?;
 
-    let iter = Iter::new(rt).await?;
+    let iter = Iter::main_module(rt).await?;
 
     let numbers = iter
         .fibonacci(20, rt)?
@@ -34,7 +34,7 @@ async fn test_iterator() -> Result<()> {
 async fn test_iterator_trait() -> Result<()> {
     let rt = &mut deno()?;
 
-    let i18n = I18n::new(rt).await?;
+    let i18n = I18n::main_module(rt).await?;
 
     let messages = i18n
         .messages(rt)

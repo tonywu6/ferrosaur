@@ -1,4 +1,4 @@
-use darling::{util::Flag, Error, FromMeta, Result};
+use darling::{Error, Result};
 use heck::ToLowerCamelCase;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -11,61 +11,21 @@ use tap::Pipe;
 
 use crate::{
     util::{
-        flag::{FlagEnum, FlagLike, FlagName},
+        flag::{FlagEnum, FlagError, FlagLike},
         interface::{DeriveInterface, InterfaceLike, OuterType, SomeFunc, SomeType},
         no_default_fn, no_fn_body,
-        property::{PropertyKey, WellKnown},
+        property::PropertyKey,
         string::StringLike,
-        unary::Unary,
-        Caveat, ErrorLocation, FatalErrors,
+        Caveat, FatalErrors,
     },
-    Interface,
+    Constructor, Function, Getter, Interface, JsItem, PropKeyString, PropKeySymbol, Property,
+    Setter,
 };
 
 mod func;
 mod get_index;
 mod prop;
 mod set_index;
-
-#[derive(Debug, Clone, FromMeta)]
-#[darling(rename_all = "snake_case")]
-enum JsProperty {
-    Prop(FlagLike<Property>),
-    Func(FlagLike<Function>),
-    New(FlagLike<Constructor>),
-    GetIndex(FlagLike<Getter>),
-    SetIndex(FlagLike<Setter>),
-}
-
-type PropKeyString = StringLike<String>;
-
-type PropKeySymbol = StringLike<WellKnown>;
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct Property {
-    name: Option<Unary<PropKeyString>>,
-    #[darling(rename = "Symbol")]
-    symbol: Option<Unary<PropKeySymbol>>,
-    with_setter: Flag,
-}
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct Function {
-    name: Option<Unary<PropKeyString>>,
-    #[darling(rename = "Symbol")]
-    symbol: Option<Unary<PropKeySymbol>>,
-}
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct Getter;
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct Setter;
-
-#[derive(Debug, Default, Clone, FromMeta)]
-struct Constructor {
-    class: Option<Unary<PropKeyString>>,
-}
 
 pub fn interface(_: Interface, item: TokenStream) -> Result<TokenStream> {
     InterfaceLike::parse
@@ -118,23 +78,39 @@ impl DeriveInterface for DeriveProperties {
         let errors = Error::accumulator();
 
         let ((FlagLike(prop), attrs), errors) =
-            FlagLike::<JsProperty>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
+            FlagLike::<JsItem>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
+
+        macro_rules! unexpected {
+            ($flag:ident, $msg:literal) => {
+                $msg.pipe(JsItem::error($flag))
+                    .with_span(&sig.ident.span())
+                    .pipe(Err)
+            };
+        }
 
         let (impl_, errors) = match prop {
-            JsProperty::Prop(FlagLike(prop)) => {
-                prop::impl_property(prop, sig).error_at::<JsProperty, Property>()
+            JsItem::Prop(FlagLike(prop)) => {
+                prop::impl_property(prop, sig).error_at::<JsItem, Property>()
             }
-            JsProperty::Func(FlagLike(func)) => {
-                func::impl_function(func.into(), sig).error_at::<JsProperty, Function>()
+            JsItem::Func(FlagLike(func)) => {
+                func::impl_function(func.into(), sig).error_at::<JsItem, Function>()
             }
-            JsProperty::New(FlagLike(ctor)) => {
-                func::impl_function(ctor.into(), sig).error_at::<JsProperty, Constructor>()
+            JsItem::New(FlagLike(ctor)) => {
+                func::impl_function(ctor.into(), sig).error_at::<JsItem, Constructor>()
             }
-            JsProperty::GetIndex(FlagLike(getter)) => {
-                get_index::impl_getter(getter, sig).error_at::<JsProperty, Getter>()
+            JsItem::GetIndex(FlagLike(getter)) => {
+                get_index::impl_getter(getter, sig).error_at::<JsItem, Getter>()
             }
-            JsProperty::SetIndex(FlagLike(setter)) => {
-                set_index::impl_setter(setter, sig).error_at::<JsProperty, Setter>()
+            JsItem::SetIndex(FlagLike(setter)) => {
+                set_index::impl_setter(setter, sig).error_at::<JsItem, Setter>()
+            }
+            JsItem::Value(flag) => unexpected!(flag, "should be used on a struct"),
+            JsItem::Module(flag) => unexpected!(flag, "should be used on a struct"),
+            JsItem::GlobalThis(flag) => unexpected!(flag, "should be used on a struct"),
+            JsItem::Interface(flag) => unexpected!(flag, "should be used on an impl or a trait"),
+            JsItem::Iterator(flag) => unexpected!(flag, "should be used on an impl or a trait"),
+            JsItem::Function(flag) => {
+                unexpected!(flag, "use #[js(func)] within a #[js(interface)]")
             }
         }
         .or_fatal(errors)?;
@@ -214,58 +190,5 @@ impl ResolveName<'_> {
         };
 
         (resolved, error).into()
-    }
-}
-
-impl FlagName for JsProperty {
-    const PREFIX: &'static str = "js";
-
-    fn unit() -> Result<Self> {
-        JsProperty::from_word()
-    }
-}
-
-impl FlagEnum for JsProperty {
-    const PREFIXES: &'static [&'static str] =
-        &[Property::PREFIX, Function::PREFIX, Constructor::PREFIX];
-}
-
-impl FlagName for Property {
-    const PREFIX: &'static str = "prop";
-
-    fn unit() -> Result<Self> {
-        Ok(Default::default())
-    }
-}
-
-impl FlagName for Function {
-    const PREFIX: &'static str = "func";
-
-    fn unit() -> Result<Self> {
-        Ok(Default::default())
-    }
-}
-
-impl FlagName for Constructor {
-    const PREFIX: &'static str = "new";
-
-    fn unit() -> Result<Self> {
-        Ok(Default::default())
-    }
-}
-
-impl FlagName for Getter {
-    const PREFIX: &'static str = "get_index";
-
-    fn unit() -> Result<Self> {
-        Ok(Self)
-    }
-}
-
-impl FlagName for Setter {
-    const PREFIX: &'static str = "set_index";
-
-    fn unit() -> Result<Self> {
-        Ok(Self)
     }
 }

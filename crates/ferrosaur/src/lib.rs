@@ -1,4 +1,3 @@
-#![cfg_attr(not(doctest), doc = include_str!("../../../README.md"))]
 use darling::{
     ast::NestedMeta,
     util::{path_to_string, Flag},
@@ -18,11 +17,13 @@ mod util;
 mod value;
 
 use crate::util::{
-    flag::{FlagEnum, FlagLike, FlagName},
+    flag::{FlagEnum, FlagError, FlagLike, FlagName},
     positional::Positional,
+    property::WellKnown,
+    string::StringLike,
     unary::Unary,
     v8::V8InnerType,
-    ErrorLocation, FatalErrors, TokenStreamResult,
+    FatalErrors, TokenStreamResult,
 };
 
 /// Macro for deriving `struct`s and `impl`s for use with `deno_core`.
@@ -37,6 +38,14 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
 
     let (js, errors) = FlagLike::<JsItem>::parse_macro_attribute(args).or_fatal(errors)?;
 
+    macro_rules! unexpected {
+        ($flag:ident) => {
+            "should be used within a #[js(interface)]"
+                .pipe(JsItem::error($flag))
+                .pipe(Err)
+        };
+    }
+
     let (js, errors) = match js.0 {
         JsItem::Value(FlagLike(value)) => value::value(value, item).error_at::<JsItem, Value>(),
 
@@ -50,16 +59,16 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
             interface::interface(interface, item).error_at::<JsItem, Interface>()
         }
         JsItem::Function(FlagLike(function)) => {
-            function::function(function, item).error_at::<JsItem, Function>()
+            function::function(function, item).error_at::<JsItem, Function_>()
         }
         JsItem::Iterator(FlagLike(iterator)) => {
             iterator::iterator(iterator, item).error_at::<JsItem, Iterator_>()
         }
-        JsItem::Prop | JsItem::Func | JsItem::New | JsItem::Get | JsItem::Set => {
-            "should be use within a #[js(interface)] impl or trait"
-                .pipe(Error::custom)
-                .pipe(Err)
-        }
+        JsItem::Prop(flag) => unexpected!(flag),
+        JsItem::Func(flag) => unexpected!(flag),
+        JsItem::New(flag) => unexpected!(flag),
+        JsItem::GetIndex(flag) => unexpected!(flag),
+        JsItem::SetIndex(flag) => unexpected!(flag),
     }
     .or_fatal(errors)?;
 
@@ -73,13 +82,13 @@ enum JsItem {
     GlobalThis(FlagLike<GlobalThis>),
     Value(FlagLike<Value>),
     Interface(FlagLike<Interface>),
-    Function(FlagLike<Function>),
+    Function(FlagLike<Function_>),
     Iterator(FlagLike<Iterator_>),
-    Prop,
-    Func,
-    New,
-    Get,
-    Set,
+    Prop(FlagLike<Property>),
+    Func(FlagLike<Function>),
+    New(FlagLike<Constructor>),
+    GetIndex(FlagLike<Getter>),
+    SetIndex(FlagLike<Setter>),
 }
 
 #[derive(Debug, Clone, FromMeta)]
@@ -89,7 +98,6 @@ struct Module(Positional<String, ModuleOptions>);
 struct ModuleOptions {
     #[darling(default)]
     url: ImportMetaUrl,
-    side_module: Flag,
     fast: Option<FastString>,
 }
 
@@ -120,10 +128,40 @@ struct Value {
 struct Interface;
 
 #[derive(Debug, Default, Clone, FromMeta)]
-struct Function;
+struct Function_;
 
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Iterator_;
+
+type PropKeyString = StringLike<String>;
+
+type PropKeySymbol = StringLike<WellKnown>;
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Property {
+    name: Option<Unary<PropKeyString>>,
+    #[darling(rename = "Symbol")]
+    symbol: Option<Unary<PropKeySymbol>>,
+    with_setter: Flag,
+}
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Function {
+    name: Option<Unary<PropKeyString>>,
+    #[darling(rename = "Symbol")]
+    symbol: Option<Unary<PropKeySymbol>>,
+}
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Constructor {
+    class: Option<Unary<PropKeyString>>,
+}
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Getter;
+
+#[derive(Debug, Default, Clone, FromMeta)]
+struct Setter;
 
 impl FromMeta for ImportMetaUrl {
     fn from_list(items: &[NestedMeta]) -> Result<Self> {
@@ -225,7 +263,7 @@ impl FlagName for Interface {
     }
 }
 
-impl FlagName for Function {
+impl FlagName for Function_ {
     const PREFIX: &'static str = "function";
 
     fn unit() -> Result<Self> {
@@ -235,6 +273,46 @@ impl FlagName for Function {
 
 impl FlagName for Iterator_ {
     const PREFIX: &'static str = "iterator";
+
+    fn unit() -> Result<Self> {
+        Ok(Self)
+    }
+}
+
+impl FlagName for Property {
+    const PREFIX: &'static str = "prop";
+
+    fn unit() -> Result<Self> {
+        Ok(Default::default())
+    }
+}
+
+impl FlagName for Function {
+    const PREFIX: &'static str = "func";
+
+    fn unit() -> Result<Self> {
+        Ok(Default::default())
+    }
+}
+
+impl FlagName for Constructor {
+    const PREFIX: &'static str = "new";
+
+    fn unit() -> Result<Self> {
+        Ok(Default::default())
+    }
+}
+
+impl FlagName for Getter {
+    const PREFIX: &'static str = "get_index";
+
+    fn unit() -> Result<Self> {
+        Ok(Self)
+    }
+}
+
+impl FlagName for Setter {
+    const PREFIX: &'static str = "set_index";
 
     fn unit() -> Result<Self> {
         Ok(Self)

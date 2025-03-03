@@ -19,11 +19,7 @@ pub mod string;
 pub mod unary;
 pub mod v8;
 
-use self::{
-    flag::{FlagEnum, FlagLike, FlagName},
-    string::StringLike,
-    unary::Unary,
-};
+use self::{flag::FlagLike, string::StringLike, unary::Unary};
 
 pub trait TokenStreamResult {
     fn or_error(self) -> TokenStream;
@@ -68,19 +64,6 @@ impl<T> RecoverableErrors<T> for Caveat<T> {
             errors.push(err);
         }
         ok
-    }
-}
-
-pub trait ErrorLocation {
-    fn error_at<E: FlagEnum, F: FlagName>(self) -> Self;
-}
-
-impl<T> ErrorLocation for Result<T> {
-    fn error_at<E: FlagEnum, F: FlagName>(self) -> Self {
-        match self {
-            Ok(value) => Ok(value),
-            Err(error) => Err(error.at(format!("#[{}({})]", E::PREFIX, F::PREFIX))),
-        }
     }
 }
 

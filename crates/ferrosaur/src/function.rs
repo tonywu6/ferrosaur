@@ -16,10 +16,10 @@ use crate::{
         interface::{DeriveInterface, InterfaceLike, OuterType, SomeFunc, SomeType},
         no_default_fn, no_fn_body, RecoverableErrors,
     },
-    Function, JsItem,
+    Function_, JsItem,
 };
 
-pub fn function(_: Function, item: TokenStream) -> Result<TokenStream> {
+pub fn function(_: Function_, item: TokenStream) -> Result<TokenStream> {
     InterfaceLike::parse
         .parse2(item)?
         .derive::<DeriveFunction>()

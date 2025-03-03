@@ -104,6 +104,10 @@ where
 
 pub trait FlagEnum: FlagName {
     const PREFIXES: &'static [&'static str];
+
+    fn error<F: FlagName, T: std::fmt::Display>(_: FlagLike<F>) -> impl FnOnce(T) -> Error {
+        |error| Error::custom(format!("#[{}({})]: {error}", Self::PREFIX, F::PREFIX))
+    }
 }
 
 impl<T> FlagLike<T>
@@ -139,5 +143,18 @@ where
             .pipe(|tokens| Attribute::parse_outer.parse2(tokens))?
             .pipe(|attrs| Self::exactly_one(attrs, attr.span()))
             .pipe(|result| Ok(result?.0))
+    }
+}
+
+pub trait FlagError {
+    fn error_at<E: FlagEnum, F: FlagName>(self) -> Self;
+}
+
+impl<T> FlagError for Result<T> {
+    fn error_at<E: FlagEnum, F: FlagName>(self) -> Self {
+        match self {
+            Ok(value) => Ok(value),
+            Err(error) => Err(error.at(format!("#[{}({})]", E::PREFIX, F::PREFIX))),
+        }
     }
 }

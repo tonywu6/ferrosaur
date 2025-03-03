@@ -39,11 +39,7 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
 
     let Module(Positional {
         head: import,
-        rest: ModuleOptions {
-            url,
-            side_module,
-            fast,
-        },
+        rest: ModuleOptions { url, fast },
     }) = module;
 
     let uses = quote! {
@@ -136,18 +132,6 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
         }
     };
 
-    let load_module_from_code = if side_module.is_present() {
-        quote! { load_side_es_module_from_code }
-    } else {
-        quote! { load_main_es_module_from_code }
-    };
-
-    let load_module_from_loader = if side_module.is_present() {
-        quote! { load_side_es_module }
-    } else {
-        quote! { load_main_es_module }
-    };
-
     let impl_as_ref = impl_as_ref_inner(&item_ty, &ident);
 
     let inner_ty = quote! { v8::Object };
@@ -179,15 +163,27 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
 
                 #fn_url
 
-                pub async fn new(rt: &mut JsRuntime) -> Result<Self> {
+                pub async fn main_module(rt: &mut JsRuntime) -> Result<Self> {
                     let id = rt
-                        .#load_module_from_code(&Self::module_url()?, Self::MODULE_SRC)
+                        .load_main_es_module_from_code(&Self::module_url()?, Self::MODULE_SRC)
                         .await?;
                     Self::mod_evaluate(rt, id).await
                 }
 
-                pub async fn new_preloaded(rt: &mut JsRuntime) -> Result<Self> {
-                    let id = rt.#load_module_from_loader(&Self::module_url()?).await?;
+                pub async fn main_module_preloaded(rt: &mut JsRuntime) -> Result<Self> {
+                    let id = rt.load_main_es_module(&Self::module_url()?).await?;
+                    Self::mod_evaluate(rt, id).await
+                }
+
+                pub async fn side_module(rt: &mut JsRuntime) -> Result<Self> {
+                    let id = rt
+                        .load_side_es_module_from_code(&Self::module_url()?, Self::MODULE_SRC)
+                        .await?;
+                    Self::mod_evaluate(rt, id).await
+                }
+
+                pub async fn side_module_preloaded(rt: &mut JsRuntime) -> Result<Self> {
+                    let id = rt.load_side_es_module(&Self::module_url()?).await?;
                     Self::mod_evaluate(rt, id).await
                 }
 

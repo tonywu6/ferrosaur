@@ -7,7 +7,7 @@ async fn main() -> Result<()> {
     let rt = &mut deno().await?;
 
     // https://oeis.org/A261038
-    let calc = Main::new(rt)
+    let calc = Main::main_module(rt)
         .await?
         .calculator(1.0, rt)?
         .add(2.0, rt)?

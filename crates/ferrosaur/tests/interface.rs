@@ -20,7 +20,7 @@ use crate::{
 async fn test_functions() -> Result<()> {
     let rt = &mut deno()?;
 
-    let main = Main::new(rt).await?;
+    let main = Main::main_module(rt).await?;
 
     let rectangle = main.rectangle(3.0, 4.0, rt)?;
 
@@ -41,7 +41,7 @@ async fn test_functions() -> Result<()> {
 async fn test_this() -> Result<()> {
     let rt = &mut deno()?;
 
-    let main = Main::new(rt).await?;
+    let main = Main::main_module(rt).await?;
 
     let checker = main.this_checker(rt)?;
 
@@ -68,7 +68,7 @@ async fn test_this() -> Result<()> {
 async fn test_promise() -> Result<()> {
     let rt = &mut deno()?;
 
-    let main = Main::new(rt).await?;
+    let main = Main::main_module(rt).await?;
 
     let resolved = tokio::time::timeout(
         Duration::from_millis(60),
@@ -85,7 +85,7 @@ async fn test_promise() -> Result<()> {
 async fn test_indexing_get() -> Result<()> {
     let rt = &mut deno()?;
 
-    let i18n = I18n::new(rt).await?;
+    let i18n = I18n::main_module(rt).await?;
 
     assert_eq!(i18n.zh_cn(rt)?, "https://zh.wikipedia.org/wiki/千字文");
 
@@ -107,7 +107,7 @@ async fn test_indexing_set() -> Result<()> {
     let rt = &mut deno()?;
 
     let global = Global::new(rt);
-    let i18n = I18n::new(rt).await?;
+    let i18n = I18n::main_module(rt).await?;
 
     global.define("foo", i18n.try_cast_global(rt)?, rt)?;
 
@@ -125,7 +125,7 @@ async fn test_indexing_set() -> Result<()> {
 async fn test_callback() -> Result<()> {
     let rt = &mut deno()?;
 
-    let main = Main::new(rt).await?;
+    let main = Main::main_module(rt).await?;
     let global = Global::new(rt);
 
     main.use_navigate(rt)?.call("https://example.org", rt)?;
