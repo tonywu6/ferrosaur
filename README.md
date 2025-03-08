@@ -25,7 +25,7 @@ impl Module {
 ```rust
 // You get:
 // let rt: &mut JsRuntime;
-let module = Module::main_module(rt).await?;
+let module = Module::main_module_init(rt).await?;
 let result = module.add(66.0, 3.0)?;
 ```
 
@@ -37,14 +37,14 @@ that you can use with your favorite [`JsRuntime`][JsRuntime].
 
 ## Examples
 
-- [_console_][example-console] — intro using console.log, start here!
+- [_console_][example-console] — intro using console.log, start from here!
 - [_calculator_][example-calculator] — loading ES modules
 - [_ts_][example-ts], [_ts-blank-space_][example-ts-blank-space] — workflows
   integrating NPM dependencies and a bundler
 
 You can run examples with `cargo run --package example-<name>`.
 
-[example-console]: ./examples/console
+[example-console]: ./examples/console/src/main.rs
 [example-calculator]: ./examples/calculator
 [example-ts]: ./examples/ts
 [example-ts-blank-space]: ./examples/ts-blank-space

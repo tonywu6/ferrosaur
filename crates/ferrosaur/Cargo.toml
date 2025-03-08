@@ -20,6 +20,9 @@ quote = { workspace = true }
 syn = { workspace = true }
 tap = { workspace = true }
 
+# only for docs
+deno_core = { workspace = true, optional = true }
+
 [dev-dependencies]
 anyhow = { workspace = true }
 deno_console = { workspace = true }
@@ -31,3 +34,9 @@ insta = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+
+[features]
+_unstable-docs = ["dep:deno_core"]
+
+[package.metadata.docs.rs]
+features = ["_unstable-docs"]

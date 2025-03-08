@@ -3,8 +3,10 @@
   "javascript.validate.enable": false,
   "typescript.validate.enable": false,
   "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+  "markdown.extension.toc.updateOnSave": true,
   "rust-analyzer.procMacro.enable": true,
   "[markdown]": {
-    "editor.defaultFormatter": "denoland.vscode-deno"
+    "editor.defaultFormatter": "denoland.vscode-deno",
+    "editor.wordWrap": "off"
   }
 }

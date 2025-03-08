@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use compile::traits::Entries;
 
-mod compile;
 mod util;
 
-use crate::{
-    compile::modules::{I18n, Iter},
-    util::deno,
+use crate::util::{
+    compile::{
+        modules::{I18n, Iter},
+        traits::Entries,
+    },
+    deno,
 };
 
 #[tokio::test]

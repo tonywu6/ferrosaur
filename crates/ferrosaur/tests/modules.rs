@@ -3,10 +3,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 use tap::Pipe;
 
-mod compile;
 mod util;
 
-use self::{compile::modules::Cwd, util::deno};
+use self::util::{compile::modules::Cwd, deno};
 
 #[tokio::test]
 async fn test_import_url() -> Result<()> {

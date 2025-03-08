@@ -1,22 +1,23 @@
 use std::{path::Path, rc::Rc};
 
 use anyhow::Result;
-use deno_core::{JsRuntime, RuntimeOptions};
+use deno_core::{v8, JsRuntime, RuntimeOptions};
 use deno_web::TimersPermission;
 use tap::Tap;
 
-use crate::compile::modules;
+#[path = "../../examples/compile.rs"]
+pub mod compile;
 
 deno_core::extension!(
     test_fixture,
     deps = [deno_web],
     esm_entry_point = "ext:globals.js",
-    esm = ["ext:globals.js" = "tests/js/globals.js"]
+    esm = ["ext:globals.js" = "examples/js/globals.js"]
 );
 
 pub fn deno() -> Result<JsRuntime> {
     Ok(JsRuntime::try_new(RuntimeOptions {
-        module_loader: Some(Rc::new(modules()?)),
+        module_loader: Some(Rc::new(compile::modules()?)),
         extensions: vec![
             deno_console::deno_console::init_ops_and_esm(),
             deno_webidl::deno_webidl::init_ops_and_esm(),
@@ -26,6 +27,14 @@ pub fn deno() -> Result<JsRuntime> {
         ],
         ..Default::default()
     })?)
+}
+
+#[allow(unused, reason = "used in doctests")]
+pub fn eval_value<T>(code: &'static str, rt: &mut JsRuntime) -> Result<T>
+where
+    v8::Global<v8::Value>: Into<T>,
+{
+    Ok(rt.execute_script("[eval]", code)?.into())
 }
 
 struct Permissions;

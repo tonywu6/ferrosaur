@@ -1,4 +1,9 @@
-//! This example shows the gist of [ferrosaur].
+//! This example shows the gist of [ferrosaur]:
+//!
+//! - You can generate Rust types to represent JavaScript types
+//! - You can generate Rust implementations to describe JavaScript interfaces
+//! - You can compose these types and implementations to express JavaScript APIs of
+//!   arbitrary shapes and complexities
 //!
 //! To run this example, run
 //!
@@ -12,6 +17,7 @@ use ferrosaur::js;
 
 #[js(global_this)]
 struct Global;
+// (this doesn't need to be named "Global")
 
 // Use #[js(value)] to derive a newtype struct to hold an arbitrary JavaScript value:
 

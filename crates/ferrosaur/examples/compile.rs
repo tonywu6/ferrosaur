@@ -1,5 +1,3 @@
-//! Test that macro usage compiles
-
 use anyhow::Result;
 use deno_core::StaticModuleLoader;
 
@@ -278,3 +276,6 @@ pub fn modules() -> Result<StaticModuleLoader> {
         Pkg::preloaded()?,
     ]))
 }
+
+#[allow(unused)]
+fn main() {}

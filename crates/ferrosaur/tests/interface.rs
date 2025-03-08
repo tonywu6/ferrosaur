@@ -4,16 +4,15 @@ use anyhow::Result;
 use deno_core::v8;
 use serde_json::json;
 
-mod compile;
 mod util;
 
-use crate::{
+use crate::util::{
     compile::{
         global::Global,
         modules::{I18n, Main},
         traits::Shape,
     },
-    util::{deno, with_portable_snapshot},
+    deno, with_portable_snapshot,
 };
 
 #[tokio::test]
