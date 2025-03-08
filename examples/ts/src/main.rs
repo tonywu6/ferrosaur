@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::Result;
 
 use example_runtime::deno;
-use example_ts::{Compiler, Example, TypeScript, inject_env_vars};
+use example_ts::{inject_env_vars, Compiler, Example, TypeScript};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -11,16 +11,16 @@ async fn main() -> Result<()> {
 
     inject_env_vars(rt)?;
 
-    TypeScript::side_module(rt).await?;
+    TypeScript::side_module_init(rt).await?;
 
-    let ts = Example::main_module(rt).await?;
+    let example = Example::main_module_init(rt).await?;
 
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src/lib.ts")
         .to_string_lossy()
         .into_owned();
 
-    let program = ts.create_program(vec![path], rt)?;
+    let program = example.create_program(vec![path], rt)?;
 
     let errors = program.print_diagnostics(true, rt)?;
 

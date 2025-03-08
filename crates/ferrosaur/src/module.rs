@@ -163,27 +163,17 @@ pub fn module(module: Module, item: TokenStream) -> Result<TokenStream> {
 
                 #fn_url
 
-                pub async fn main_module(rt: &mut JsRuntime) -> Result<Self> {
+                pub async fn main_module_init(rt: &mut JsRuntime) -> Result<Self> {
                     let id = rt
                         .load_main_es_module_from_code(&Self::module_url()?, Self::MODULE_SRC)
                         .await?;
                     Self::mod_evaluate(rt, id).await
                 }
 
-                pub async fn main_module_preloaded(rt: &mut JsRuntime) -> Result<Self> {
-                    let id = rt.load_main_es_module(&Self::module_url()?).await?;
-                    Self::mod_evaluate(rt, id).await
-                }
-
-                pub async fn side_module(rt: &mut JsRuntime) -> Result<Self> {
+                pub async fn side_module_init(rt: &mut JsRuntime) -> Result<Self> {
                     let id = rt
                         .load_side_es_module_from_code(&Self::module_url()?, Self::MODULE_SRC)
                         .await?;
-                    Self::mod_evaluate(rt, id).await
-                }
-
-                pub async fn side_module_preloaded(rt: &mut JsRuntime) -> Result<Self> {
-                    let id = rt.load_side_es_module(&Self::module_url()?).await?;
                     Self::mod_evaluate(rt, id).await
                 }
 

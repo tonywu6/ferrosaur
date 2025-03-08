@@ -110,7 +110,7 @@ impl DeriveInterface for DeriveProperties {
             JsItem::Interface(flag) => unexpected!(flag, "should be used on an impl or a trait"),
             JsItem::Iterator(flag) => unexpected!(flag, "should be used on an impl or a trait"),
             JsItem::Function(flag) => {
-                unexpected!(flag, "use #[js(func)] within a #[js(interface)]")
+                unexpected!(flag, "should be #[js(func)] within a #[js(interface)]")
             }
         }
         .or_fatal(errors)?;

@@ -40,7 +40,7 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
 
     macro_rules! unexpected {
         ($flag:ident) => {
-            "should be used within a #[js(interface)]"
+            "should be used within an impl or a trait annotated with #[js(interface)]"
                 .pipe(JsItem::error($flag))
                 .pipe(Err)
         };

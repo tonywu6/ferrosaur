@@ -1,5 +1,6 @@
 [package]
 name = "ferrosaur"
+publish = true
 readme = "../../README.md"
 version = "0.1.0"
 

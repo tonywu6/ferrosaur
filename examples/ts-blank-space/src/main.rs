@@ -23,11 +23,11 @@ impl Main {
 async fn main() -> Result<()> {
     let rt = &mut deno(Main::module_url()?)?.js_runtime;
 
-    TypeScript::side_module(rt).await?;
+    TypeScript::side_module_init(rt).await?;
 
     inject_env_vars(rt)?;
 
-    let ts = Main::main_module(rt).await?;
+    let ts = Main::main_module_init(rt).await?;
 
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ts/src/lib.ts");
 
@@ -47,17 +47,19 @@ async fn main() -> Result<()> {
 
     impl Compiler for Module {}
 
-    let errors = module
-        .create_program(vec![source.to_string_lossy().into()], rt)?
-        .print_diagnostics(true, rt)?;
-
-    println!("{errors}");
-
     PrettyPrinter::new()
         .input_from_bytes(js.as_bytes())
         .language("javascript")
         .theme("GitHub")
         .print()?;
+
+    println!();
+
+    let errors = module
+        .create_program(vec![source.to_string_lossy().into()], rt)?
+        .print_diagnostics(true, rt)?;
+
+    println!("{errors}");
 
     {
         let mut settings = insta::Settings::clone_current();

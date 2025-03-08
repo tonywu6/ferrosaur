@@ -2,25 +2,13 @@ use anyhow::Result;
 use deno_core::{JsRuntime, RuntimeOptions};
 use ferrosaur::js;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let rt = &mut deno().await?;
+#[js(module("./main.js", fast))]
+struct Main;
 
-    // https://oeis.org/A261038
-    let calc = Main::main_module(rt)
-        .await?
-        .calculator(1.0, rt)?
-        .add(2.0, rt)?
-        .sub(3.0, rt)?
-        .mul(4.0, rt)?
-        .div(5.0, rt)?;
-
-    // https://en.wikipedia.org/wiki/Reverse_Polish_notation
-    println!("RPN: {}", calc.print(rt)?);
-
-    assert_eq!(calc.value(rt)?, 0.0);
-
-    Ok(())
+#[js(interface)]
+impl Main {
+    #[js(new)]
+    fn calculator(&self, value: serde<f64>) -> Calculator {}
 }
 
 #[js(value)]
@@ -48,17 +36,23 @@ impl Calculator {
     fn print(&self) -> String {}
 }
 
-#[js(module("./main.js", fast))]
-struct Main;
+#[tokio::main]
+async fn main() -> Result<()> {
+    let rt = &mut JsRuntime::new(RuntimeOptions::default());
 
-#[js(interface)]
-impl Main {
-    #[js(new)]
-    fn calculator(&self, value: serde<f64>) -> Calculator {}
-}
+    // https://oeis.org/A261038
+    let calc = Main::main_module_init(rt)
+        .await?
+        .calculator(1.0, rt)?
+        .add(2.0, rt)?
+        .sub(3.0, rt)?
+        .mul(4.0, rt)?
+        .div(5.0, rt)?;
 
-async fn deno() -> Result<JsRuntime> {
-    Ok(JsRuntime::new(RuntimeOptions {
-        ..Default::default()
-    }))
+    // https://en.wikipedia.org/wiki/Reverse_Polish_notation
+    println!("RPN: {}", calc.print(rt)?);
+
+    assert_eq!(calc.value(rt)?, 0.0);
+
+    Ok(())
 }

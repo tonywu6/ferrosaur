@@ -2479,6 +2479,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-console"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "example-runtime",
+ "ferrosaur",
+ "tokio",
+]
+
+[[package]]
 name = "example-runtime"
 version = "0.1.0"
 dependencies = [
