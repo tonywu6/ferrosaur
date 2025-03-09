@@ -37,8 +37,9 @@ that you can use with your favorite [`JsRuntime`][JsRuntime].
 
 ## Examples
 
-- [_console_][example-console] — intro using console.log, start from here!
-- [_calculator_][example-calculator] — loading ES modules
+- [_console_][example-console] — intro using console.log, start here!
+- [_calculator_][example-calculator] — embedding ES modules for a portable
+  program
 - [_ts_][example-ts], [_ts-blank-space_][example-ts-blank-space] — workflows
   integrating NPM dependencies and a bundler
 

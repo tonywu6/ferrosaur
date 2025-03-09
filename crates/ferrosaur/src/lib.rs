@@ -1,4 +1,4 @@
-#![doc = include_str!("../README.md")]
+// #![doc = include_str!("../README.md")]
 
 use darling::{
     ast::NestedMeta,
@@ -117,6 +117,7 @@ enum FastString {
     FastUnsafeDebug,
 }
 
+#[doc = include_str!("../../../docs/src/reference/global_this.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct GlobalThis;
 

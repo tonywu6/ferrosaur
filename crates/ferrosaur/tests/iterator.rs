@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 
-mod util;
+mod fixture;
 
-use crate::util::{
-    compile::{
+use fixture::{
+    deno,
+    items::{
         modules::{I18n, Iter},
         traits::Entries,
     },
-    deno,
 };
 
 #[tokio::test]

@@ -13,15 +13,13 @@ more information, see the GitHub [README].
   <summary><strong>Table of Contents</strong></summary>
 
 - [Reference](#reference)
-  - [`#[js(global_this)]`](#jsglobal_this)
-    - [Trait Implementations](#trait-implementations)
   - [`#[js(module)]`](#jsmodule)
-    - [Trait implementations](#trait-implementations-1)
+    - [Trait implementations](#trait-implementations)
     - [Option: #\[js(module(..., `fast`))\]](#option-jsmodule-fast)
     - [Option: #\[js(module(..., `fast(unsafe_debug)`))\]](#option-jsmodule-fastunsafe_debug)
     - [Option: #\[js(module(..., `url(...)`))\]](#option-jsmodule-url)
   - [`#[js(value)]`](#jsvalue)
-    - [Trait Implementations](#trait-implementations-2)
+    - [Trait Implementations](#trait-implementations-1)
     - [Option: #\[js(value(`of_type(T)`))\]](#option-jsvalueof_typet)
   - [`#[js(interface)]`](#jsinterface)
     - [`#[js(prop)]`](#jsprop)
@@ -36,8 +34,7 @@ more information, see the GitHub [README].
     - [`#[js(new)]`](#jsnew)
       - [Placement](#placement)
       - [Option: #\[js(new(`class(...)`))\]](#option-jsnewclass)
-    - [`#[js(get_index)]`](#jsget_index)
-    - [`#[js(set_index)]`](#jsset_index)
+    - [`#[js(get_index)]`, `#[js(set_index)]`](#jsget_index-jsset_index)
   - [`#[js(function)]`](#jsfunction)
   - [`#[js(iterator)]`](#jsiterator)
   - [Type conversions](#type-conversions)
@@ -51,45 +48,6 @@ more information, see the GitHub [README].
 </details>
 
 # Reference
-
-## `#[js(global_this)]`
-
-Generate a [newtype] struct to hold a reference to [`globalThis`][globalThis].
-
-```rust
-# use ferrosaur::js;
-#[js(global_this)]
-struct Global;
-```
-
-Call the associated `new` function to initialize it given a `&mut JsRuntime`:
-
-```rust
-# #[path = "../tests/util/mod.rs"]
-# mod util;
-# use util::compile::global::Global;
-# let rt = &mut util::deno()?;
-// let rt: &mut JsRuntime;
-Global::new(rt);
-# Ok::<_, anyhow::Error>(())
-```
-
-[newtype]: https://doc.rust-lang.org/rust-by-example/generics/new_types.html
-[globalThis]: http://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis
-
-### Trait Implementations
-
-<!-- deno-fmt-ignore-start -->
-
-- <span class="code-header">impl [AsRef]<[v8::Global]<[v8::Object]>> for Global</span>
-- <span class="code-header">impl<\'a> [ToV8]<\'a> for Global</span>
-- <span class="code-header">impl<\'a> [ToV8]<\'a> for &\'_ Global</span>
-
-<!-- deno-fmt-ignore-end -->
-
-[v8::Global]: deno_core::v8::Global
-[v8::Object]: deno_core::v8::Object
-[ToV8]: deno_core::ToV8
 
 ---
 
@@ -325,8 +283,8 @@ You can declare:
 - [`#[js(prop)]`](#jsprop) — property accessors
 - [`#[js(func)]`](#jsfunc) — functions
 - [`#[js(new)]`](#jsnew) — constructors
-- [`#[js(get_index)]`](#jsget_index), [`#[js(set_index)]`](#jsset_index) —
-  indexing getters and setters
+- [`#[js(get_index)]`, `#[js(set_index)]`](#jsget_index-jsset_index) — indexing
+  getters and setters
 
 You can use `#[js(interface)]` to generate implementations for any Rust types
 generated using this crate, see [`Self` type](#self-type) for more info. You can
@@ -773,9 +731,7 @@ impl Window {
 # struct XmlHttpRequest;
 ```
 
-### `#[js(get_index)]`
-
-### `#[js(set_index)]`
+### `#[js(get_index)]`, `#[js(set_index)]`
 
 ## `#[js(function)]`
 

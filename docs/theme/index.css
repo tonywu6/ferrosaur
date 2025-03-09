@@ -1,0 +1,17 @@
+h3.code-header {
+  font-size: 1.125rem;
+}
+
+h4.code-header {
+  font-size: 1rem;
+}
+
+.code-header {
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+}
+
+.code-header {
+  font-family: var(--mono-font);
+}

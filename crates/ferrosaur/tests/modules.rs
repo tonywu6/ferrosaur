@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 use tap::Pipe;
 
-mod util;
+mod fixture;
 
-use self::util::{compile::modules::Cwd, deno};
+use fixture::{deno, items::modules::Cwd};
 
 #[tokio::test]
 async fn test_import_url() -> Result<()> {

@@ -5,8 +5,8 @@ use deno_core::{v8, JsRuntime, RuntimeOptions};
 use deno_web::TimersPermission;
 use tap::Tap;
 
-#[path = "../../examples/compile.rs"]
-pub mod compile;
+#[path = "../../examples/fixture.rs"]
+pub mod items;
 
 deno_core::extension!(
     test_fixture,
@@ -17,7 +17,7 @@ deno_core::extension!(
 
 pub fn deno() -> Result<JsRuntime> {
     Ok(JsRuntime::try_new(RuntimeOptions {
-        module_loader: Some(Rc::new(compile::modules()?)),
+        module_loader: Some(Rc::new(items::modules()?)),
         extensions: vec![
             deno_console::deno_console::init_ops_and_esm(),
             deno_webidl::deno_webidl::init_ops_and_esm(),

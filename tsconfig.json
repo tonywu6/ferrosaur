@@ -10,5 +10,5 @@
     "strict": true,
     "noEmit": true
   },
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["dist", "target", "node_modules"]
 }

@@ -1,0 +1,25 @@
+[book]
+authors = ["Tony Wu"]
+language = "en"
+multilingual = false
+src = "src"
+title = "ferrosaur"
+
+[rust]
+edition = "2021"
+
+[output.html]
+additional-css = ["theme/index.css"]
+default-theme = "ayu"
+git-repository-icon = "fa-github"
+git-repository-url = "https://github.com/tonywu6/ferrosaur"
+hash-files = true
+preferred-dark-theme = "ayu"
+site-url = "/"
+
+[output.html.playground]
+runnable = false
+
+[preprocessor.rustdoc-link]
+command = "cargo run --release --package mdbook-rustdoc-link --"
+manifest-dir = "../crates/ferrosaur"
