@@ -1,1 +1,5 @@
 - compile fail and panic tests
+- mdbook
+  - notebook
+  - repo link
+  - shiki

@@ -11,7 +11,7 @@ similar.opt-level = 3
 
 [workspace]
 default-members = ["crates/*"]
-members = ["crates/*", "docs/preprocessors/rustdoc-link", "examples/*"]
+members = ["crates/*", "examples/*"]
 resolver = "2"
 
 [workspace.dependencies]

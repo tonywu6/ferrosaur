@@ -94,6 +94,7 @@ enum JsItem {
 }
 
 #[derive(Debug, Clone, FromMeta)]
+#[doc = include_str!("../../../docs/src/reference/module.md")]
 struct Module(Positional<String, ModuleOptions>);
 
 #[derive(Debug, Clone, FromMeta)]
@@ -117,16 +118,18 @@ enum FastString {
     FastUnsafeDebug,
 }
 
-#[doc = include_str!("../../../docs/src/reference/global_this.md")]
+#[doc = include_str!("../../../docs/src/reference/global-this.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct GlobalThis;
 
+#[doc = include_str!("../../../docs/src/reference/value.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Value {
     #[darling(default)]
     of_type: Unary<V8InnerType>,
 }
 
+#[doc = include_str!("../../../docs/src/reference/interface.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Interface;
 
@@ -140,6 +143,7 @@ type PropKeyString = StringLike<String>;
 
 type PropKeySymbol = StringLike<WellKnown>;
 
+#[doc = include_str!("../../../docs/src/reference/interface/prop.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Property {
     name: Option<Unary<PropKeyString>>,
@@ -148,6 +152,7 @@ struct Property {
     with_setter: Flag,
 }
 
+#[doc = include_str!("../../../docs/src/reference/interface/func.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Function {
     name: Option<Unary<PropKeyString>>,
@@ -155,6 +160,7 @@ struct Function {
     symbol: Option<Unary<PropKeySymbol>>,
 }
 
+#[doc = include_str!("../../../docs/src/reference/interface/new.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Constructor {
     class: Option<Unary<PropKeyString>>,

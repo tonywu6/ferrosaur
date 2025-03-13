@@ -5,6 +5,10 @@ multilingual = false
 src = "src"
 title = "ferrosaur"
 
+[build]
+build-dir = "dist"
+create-missing = false
+
 [rust]
 edition = "2021"
 
@@ -21,5 +25,6 @@ site-url = "/"
 runnable = false
 
 [preprocessor.rustdoc-link]
-command = "cargo run --release --package mdbook-rustdoc-link --"
+after = ["links"]
+cache-dir = "build"
 manifest-dir = "../crates/ferrosaur"
