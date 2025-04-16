@@ -1,9 +1,5 @@
 // @ts-check
 
-/// <reference no-default-lib="true"/>
-/// <reference path="https://raw.githubusercontent.com/denoland/deno_core/refs/tags/0.339.0/core/core.d.ts" />
-/// <reference path="https://raw.githubusercontent.com/denoland/deno/refs/tags/v2.2.1/cli/tsc/dts/lib.deno.shared_globals.d.ts" />
-
 import "ext:deno_console/01_console.js";
 import "ext:deno_url/00_url.js";
 import "ext:deno_url/01_urlpattern.js";

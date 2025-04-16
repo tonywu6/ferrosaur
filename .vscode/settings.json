@@ -1,13 +1,24 @@
 {
-  "deno.enable": true,
-  "javascript.validate.enable": false,
-  "typescript.validate.enable": false,
-  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
-  "markdown.extension.toc.updateOnSave": true,
-  "markdown.extension.toc.levels": "2..6",
-  "rust-analyzer.procMacro.enable": true,
+  "[css]": {
+    "editor.codeActionsOnSave": {
+      "source.fixAll.stylelint": "explicit"
+    }
+  },
   "[markdown]": {
-    "editor.defaultFormatter": "denoland.vscode-deno",
-    "editor.wordWrap": "off"
-  }
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "deno.enable": true,
+  "editor.formatOnSave": true,
+  "files.associations": {
+    "**/*.snap": "markdown",
+    "**/*.snap.new": "markdown"
+  },
+  "javascript.validate.enable": false,
+  "markdown.extension.toc.levels": "2..6",
+  "markdown.extension.toc.updateOnSave": true,
+  "markdown.validate.enabled": false,
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.check.command": "clippy",
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+  "typescript.validate.enable": false
 }

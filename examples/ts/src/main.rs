@@ -28,12 +28,12 @@ async fn main() -> Result<()> {
 
     let errors = program.print_diagnostics(false, rt)?;
 
-    insta::assert_snapshot!(errors, @r###"
+    insta::assert_snapshot!(errors, @r"
     src/lib.ts(1,16): error TS2307: Cannot find module 'npm:typescript' or its corresponding type declarations.
     src/lib.ts(41,20): error TS7006: Parameter 'fileName' implicitly has an 'any' type.
-    src/lib.ts(65,63): error TS2304: Cannot find name 'Deno'.
-    src/lib.ts(66,26): error TS7006: Parameter 'name' implicitly has an 'any' type.
-    "###);
+    src/lib.ts(63,63): error TS2304: Cannot find name 'Deno'.
+    src/lib.ts(64,26): error TS7006: Parameter 'name' implicitly has an 'any' type.
+    ");
 
     Ok(())
 }

@@ -1,11 +1,24 @@
 {
+  "compilerOptions": {
+    "lib": ["esnext", "dom", "deno.ns"],
+    "strict": true
+  },
+  "exclude": [
+    "node_modules",
+    "build",
+    "dist",
+    "target",
+    "docs/app/dist.js",
+    "docs/src/app"
+  ],
   "imports": {
-    "esbuild": "npm:esbuild@^0.25.0",
-    "ts-blank-space": "npm:ts-blank-space@^0.6.0",
-    "typescript": "npm:typescript@^5.7.3"
+    "esbuild": "npm:esbuild@^0.25.1",
+    "prettier": "npm:prettier@^3.5.3",
+    "ts-blank-space": "npm:ts-blank-space@^0.6.1",
+    "typescript": "npm:typescript@^5.8.3"
   },
-  "lint": {
-    "exclude": ["node_modules", "dist"]
-  },
-  "nodeModulesDir": "auto"
+  "nodeModulesDir": "auto",
+  "tasks": {
+    "format": "deno run -A npm:prettier --write docs/app docs/src"
+  }
 }

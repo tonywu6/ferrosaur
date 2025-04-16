@@ -48,19 +48,16 @@ assert(date.toISOString() === "1970-01-01T00:00:00.000Z");
 
 The generated function has the signature
 
-<!-- deno-fmt-ignore-start -->
+<!-- prettier-ignore-start -->
 <span class="code-header">fn <span class="fn">\[name]</span>(&self, \[args...,] _rt: &mut [JsRuntime]) -> [anyhow::Result]\<...></span>
-<!-- deno-fmt-ignore-end -->
+<!-- prettier-ignore-end -->
 
-This accepts the same argument and return type format as [`js(func)`](func.md).
-Note that constructors cannot be async.
+This accepts the same argument and return type format as [`js(func)`](func.md). Note
+that constructors cannot be async.
 
-Implicitly, the class name is the name of the return type (with case preserved).
-If the return type name cannot be used, such as if it is not a simple
-identifier, or if you would like to override it, you can use the
-[`class`](#jsnewclass) option.
-
-[JsRuntime]: deno_core::JsRuntime
+Implicitly, the class name is the name of the return type (with case preserved). If the
+return type name cannot be used, such as if it is not a simple identifier, or if you
+would like to override it, you can use the [`class`](#option-class) option.
 
 <details class="toc" open>
   <summary>Table of contents</summary>
@@ -72,9 +69,9 @@ identifier, or if you would like to override it, you can use the
 
 ## Placement
 
-Note that the return type indicates _the JavaScript type that will be
-constructed_, whereas `&self` represents _the JavaScript object that has access
-to the constructor_ (such as a module or `globalThis`).
+Note that the return type indicates _the JavaScript type that will be constructed_,
+whereas `&self` represents _the JavaScript object that has access to the constructor_
+(such as a module or `globalThis`).
 
 In other words, the following usage is almost never correct:
 
@@ -108,3 +105,9 @@ impl Window {
 # #[js(value)]
 # struct XmlHttpRequest;
 ```
+
+<!-- prettier-ignore-start -->
+
+[JsRuntime]: deno_core::JsRuntime
+
+<!-- prettier-ignore-end -->

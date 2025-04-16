@@ -11,11 +11,17 @@ similar.opt-level = 3
 
 [workspace]
 default-members = ["crates/*"]
-members = ["crates/*", "examples/*"]
+members = ["crates/*", "examples/*", "utils/cargo-bin"]
 resolver = "2"
 
 [workspace.dependencies]
 anyhow = "1.0.95"
+deno_console = "=0.193.0"
+deno_core = "=0.338.0"
+deno_runtime = "=0.192.0"
+deno_url = "=0.193.0"
+deno_web = "=0.224.0"
+deno_webidl = "=0.193.0"
 ferrosaur = { path = "crates/ferrosaur" }
 insta = { version = "1.40.0", features = ["yaml"] }
 proc-macro2 = "1.0.93"
@@ -26,9 +32,13 @@ syn = "2.0.98"
 tap = "1.0.1"
 tokio = { version = "1", features = ["macros"] }
 
-deno_console = "=0.193.0"
-deno_core = "=0.338.0"
-deno_runtime = "=0.192.0"
-deno_url = "=0.193.0"
-deno_web = "=0.224.0"
-deno_webidl = "=0.193.0"
+[workspace.metadata.bin]
+mdbook = { version = "0.4.48" }
+mdbook-alerts = { version = "0.7.0" }
+mdbookkit = { version = "1.1.0", bins = [
+  "mdbook-rustdoc-link",
+  "mdbook-link-forever",
+], features = [
+  "rustdoc-link",
+  "link-forever",
+] }

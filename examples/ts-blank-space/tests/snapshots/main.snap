@@ -1,5 +1,6 @@
 ---
 source: examples/ts-blank-space/src/main.rs
+assertion_line: 69
 description: script compiled with ts-blank-space
 expression: js
 ---
@@ -59,9 +60,7 @@ function createCompilerHost()                  {
 
 ;               
                         
-                              
                                                            
-                              
                                                
    
  

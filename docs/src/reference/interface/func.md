@@ -41,20 +41,19 @@ console.log("🦀 + 🦕");
 
 The generated function has the signature
 
-<!-- deno-fmt-ignore-start -->
+<!-- prettier-ignore-start -->
 <span class="code-header">fn <span class="fn">\[name]</span>(&self, \[args...,] _rt: &mut [JsRuntime]) -> [anyhow::Result]\<...></span>
-<!-- deno-fmt-ignore-end -->
+<!-- prettier-ignore-end -->
 
 Argument types should implement either [`ToV8`][ToV8] (the default) or
-[`Serialize`][Serialize] (if written as `serde<T>`); the return type should
-implement either [`FromV8`][FromV8] or [`DeserializeOwned`][DeserializeOwned].
+[`Serialize`][Serialize] (if written as `serde<T>`); the return type should implement
+either [`FromV8`][FromV8] or [`DeserializeOwned`][DeserializeOwned].
 
 Implicitly, the function name is the Rust function name case-converted using
-[`heck::ToLowerCamelCase`], but you can override this using the
-[`name`](#option-name--) or [`Symbol`](#option-symbol) option.
+[`heck::ToLowerCamelCase`], but you can override this using the [`name`](#option-name--)
+or [`Symbol`](#option-symbol) option.
 
-`js(func)` supports [async functions](#async-functions) and [variadic
-arguments][TODO:].
+`js(func)` supports [async functions](#async-functions) and [variadic arguments][TODO:].
 
 [JsRuntime]: deno_core::JsRuntime
 [ToV8]: deno_core::ToV8
@@ -117,25 +116,24 @@ interface PromiseConstructor {
   resolve(value: number): Promise<number>;
 }
 declare let Promise: PromiseConstructor;
-assert(await Promise.resolve(42) === 42);
+assert((await Promise.resolve(42)) === 42);
 ```
 
-The generated function will be an `async fn` instead of a normal `fn`. The
-returned [`Future`][Future] will be ready once the underlying JS value fulfills.
+The generated function will be an `async fn` instead of a normal `fn`. The returned
+[`Future`][Future] will be ready once the underlying JS value fulfills.
 
-This uses [`JsRuntime::with_event_loop_promise`][with_event_loop_promise] under
-the hood, which drives the event loop for you.
+This uses [`JsRuntime::with_event_loop_promise`][with_event_loop_promise] under the
+hood, which drives the event loop for you.
 
 [Future]: std::future::Future
 [with_event_loop_promise]: deno_core::JsRuntime::with_event_loop_promise
 
 ## `this` argument
 
-By default, the JS function has a `this` value of the object from which the
-function is accessed (i.e. `&self`).
+By default, the JS function has a `this` value of the object from which the function is
+accessed (i.e. `&self`).
 
-Alternatively, you can explicitly declare the type of `this` using the first
-argument:
+Alternatively, you can explicitly declare the type of `this` using the first argument:
 
 ### `this: undefined` <!-- omit from toc -->
 
@@ -150,8 +148,7 @@ impl Object {
 }
 ```
 
-`this` will be `undefined`; the generated function will not have a `this`
-argument.
+`this` will be `undefined`; the generated function will not have a `this` argument.
 
 ### `this: [SomeType]` <!-- omit from toc -->
 
@@ -169,9 +166,8 @@ impl Object {
 // struct SomeType;
 ```
 
-This allows you to explicitly pass a value as `this` when calling the function,
-which will be subject to the same [type conversion][TODO:] rules as normal
-arguments.
+This allows you to explicitly pass a value as `this` when calling the function, which
+will be subject to the same [type conversion][TODO:] rules as normal arguments.
 
 ## Option `name = "..."`
 

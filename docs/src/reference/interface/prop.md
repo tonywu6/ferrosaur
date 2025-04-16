@@ -42,18 +42,18 @@ assert(lorem.ipsum === 42);
 
 The generated function has the signature
 
-<!-- deno-fmt-ignore-start -->
+<!-- prettier-ignore-start -->
 <span class="code-header">fn <span class="fn">\[name]</span>(&self, rt: &mut [JsRuntime]) -> [anyhow::Result]\<...></span>
-<!-- deno-fmt-ignore-end -->
+<!-- prettier-ignore-end -->
 
-The return type indicates the expected type of the property, which should
-implement either [`FromV8`][FromV8] (the default) or
-[`DeserializeOwned`][DeserializeOwned] (if written as `serde<...>`). See [Type
-conversions][TODO:] for more on how types are specified for this crate.
+The return type indicates the expected type of the property, which should implement
+either [`FromV8`][FromV8] (the default) or [`DeserializeOwned`][DeserializeOwned] (if
+written as `serde<...>`). See [Type conversions][TODO:] for more on how types are
+specified for this crate.
 
 Implicitly, the property name is the Rust function name case-converted using
-[`heck::ToLowerCamelCase`], but you can override this using the
-[`name`](#option-jspropname--) or [`Symbol`](#option-jspropsymbol) option.
+[`heck::ToLowerCamelCase`], but you can override this using the [`name`](#option-name--)
+or [`Symbol`](#option-symbol) option.
 
 [anyhow::Result]: deno_core::anyhow::Result
 [JsRuntime]: deno_core::JsRuntime
@@ -114,12 +114,10 @@ interface Lorem {
 }
 ```
 
-[well-known-symbols]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#static_properties
-
 ## Option `with_setter`
 
-Generate a setter function in addition to a getter function. The function always
-has the name `set_[getter_name]`.
+Generate a setter function in addition to a getter function. The function always has the
+name `set_[getter_name]`.
 
 ```rust
 # use ferrosaur::js;
@@ -161,8 +159,14 @@ assert(lorem.ipsum === 69);
 
 The generated function has the signature
 
-<!-- deno-fmt-ignore-start -->
+<!-- prettier-ignore-start -->
 <span class="code-header">fn <span class="fn">set_\[getter_name]</span>(&self, value: ..., rt: &mut [JsRuntime]) -> [anyhow::Result]\<()></span>
-<!-- deno-fmt-ignore-end -->
+<!-- prettier-ignore-end -->
 
 where `value` has the same type as the getter's declared return type.
+
+<!-- prettier-ignore-start -->
+
+[well-known-symbols]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#static_properties
+
+<!-- prettier-ignore-end -->

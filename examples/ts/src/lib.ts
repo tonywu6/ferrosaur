@@ -54,9 +54,7 @@ function createCompilerHost(): ts.CompilerHost {
 
 declare global {
   namespace globalThis {
-    // deno-lint-ignore no-var
     var TYPESCRIPT_LIB: Record<string, string> | undefined;
-    // deno-lint-ignore no-var
     var CARGO_MANIFEST_DIR: string | undefined;
   }
 }

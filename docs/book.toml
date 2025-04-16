@@ -13,7 +13,8 @@ create-missing = false
 edition = "2021"
 
 [output.html]
-additional-css = ["theme/index.css"]
+additional-css = ["app/dist.css"]
+additional-js = ["app/dist.js"]
 default-theme = "ayu"
 git-repository-icon = "fa-github"
 git-repository-url = "https://github.com/tonywu6/ferrosaur"
@@ -27,4 +28,14 @@ runnable = false
 [preprocessor.rustdoc-link]
 after = ["links"]
 cache-dir = "build"
+command = "cargo bin mdbook-rustdoc-link"
 manifest-dir = "../crates/ferrosaur"
+
+[preprocessor.link-forever]
+after = ["rustdoc-link"]
+always-link = [".rs"]
+book-url = "https://tonywu6.github.io/ferrosaur/"
+command = "cargo bin mdbook-link-forever"
+
+[preprocessor.app]
+command = "deno run --allow-all app/build/preprocessor.ts"
