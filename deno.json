@@ -12,7 +12,7 @@
     "docs/src/app"
   ],
   "imports": {
-    "esbuild": "npm:esbuild@^0.25.1",
+    "esbuild": "npm:esbuild@^0.25.2",
     "prettier": "npm:prettier@^3.5.3",
     "ts-blank-space": "npm:ts-blank-space@^0.6.1",
     "typescript": "npm:typescript@^5.8.3"

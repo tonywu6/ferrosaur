@@ -1,10 +1,20 @@
+import { examplePage } from "../example.ts";
+
 if (Deno.args[0] === "supports") {
   Deno.exit(Deno.args[1] === "html" ? 0 : 1);
 }
 
 await import("./build.ts");
 
-const [, book] = await read(Deno.stdin.readable).then(JSON.parse);
+const [, book] = await read(Deno.stdin.readable)
+  // <br>
+  .then((data): [unknown, Book] => JSON.parse(data));
+
+for (const section of book.sections) {
+  if ("Chapter" in section) {
+    section.Chapter.content = examplePage(section.Chapter.content);
+  }
+}
 
 console.log(JSON.stringify(book));
 
@@ -19,3 +29,7 @@ async function read(r: ReadableStream): Promise<string> {
   }
   return result;
 }
+
+type Book = {
+  sections: ({ PartTitle: string } | { Chapter: { content: string } })[];
+};

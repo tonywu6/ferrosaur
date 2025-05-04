@@ -43,4 +43,5 @@ after = ["rustdoc-link"]
 command = "cargo bin mdbook-alerts"
 
 [preprocessor.app]
+after = ["links"]
 command = "deno run --allow-all app/build/preprocessor.ts"

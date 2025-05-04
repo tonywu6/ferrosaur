@@ -1,5 +1,9 @@
 # Summary
 
+# Examples
+
+- [console.log](examples/console.md)
+
 # Reference
 
 - [Introduction](intro.md)

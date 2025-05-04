@@ -20,5 +20,6 @@
   "rust-analyzer.cargo.features": "all",
   "rust-analyzer.check.command": "clippy",
   "typescript.tsserver.experimental.enableProjectDiagnostics": false,
-  "typescript.validate.enable": false
+  "typescript.validate.enable": false,
+  "typescript.tsdk": "node_modules/typescript/lib"
 }
