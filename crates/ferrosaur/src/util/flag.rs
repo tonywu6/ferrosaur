@@ -16,7 +16,8 @@ pub trait FlagName: Sized {
 
     fn test(meta: &Meta) -> Result<()> {
         let name = path_to_string(meta.path());
-        if Self::PREFIX == name {
+        if name == Self::PREFIX || name == format!("{}::{}", env!("CARGO_CRATE_NAME"), Self::PREFIX)
+        {
             Ok(())
         } else {
             format!("unexpected name `{name}`, expected `{}`", Self::PREFIX)
@@ -104,10 +105,6 @@ where
 
 pub trait FlagEnum: FlagName {
     const PREFIXES: &'static [&'static str];
-
-    fn error<F: FlagName, T: std::fmt::Display>(_: FlagLike<F>) -> impl FnOnce(T) -> Error {
-        |error| Error::custom(format!("#[{}({})]: {error}", Self::PREFIX, F::PREFIX))
-    }
 }
 
 impl<T> FlagLike<T>

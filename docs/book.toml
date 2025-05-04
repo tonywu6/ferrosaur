@@ -8,6 +8,7 @@ title = "ferrosaur"
 [build]
 build-dir = "dist"
 create-missing = false
+extra-watch-dirs = ["app"]
 
 [rust]
 edition = "2021"
@@ -36,6 +37,10 @@ after = ["rustdoc-link"]
 always-link = [".rs"]
 book-url = "https://tonywu6.github.io/ferrosaur/"
 command = "cargo bin mdbook-link-forever"
+
+[preprocessor.alerts]
+after = ["rustdoc-link"]
+command = "cargo bin mdbook-alerts"
 
 [preprocessor.app]
 command = "deno run --allow-all app/build/preprocessor.ts"

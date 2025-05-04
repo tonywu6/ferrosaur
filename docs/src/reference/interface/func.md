@@ -1,6 +1,8 @@
 # `#[js(func)]`
 
-Generate a Rust function to call a JavaScript function.
+Use `#[js(func)]` for calling JavaScript functions.
+
+<figure>
 
 ```rust
 # use ferrosaur::js;
@@ -32,6 +34,7 @@ console.log("🦀 + 🦕", rt)?;
 ```
 
 ```ts
+// Expressed in TypeScript:
 interface Console {
   log(message: string): void;
 }
@@ -39,39 +42,43 @@ declare let console: Console;
 console.log("🦀 + 🦕");
 ```
 
-The generated function has the signature
+</figure>
 
-<!-- prettier-ignore-start -->
-<span class="code-header">fn <span class="fn">\[name]</span>(&self, \[args...,] _rt: &mut [JsRuntime]) -> [anyhow::Result]\<...></span>
-<!-- prettier-ignore-end -->
+The generated function has the signature:
 
-Argument types should implement either [`ToV8`][ToV8] (the default) or
-[`Serialize`][Serialize] (if written as `serde<T>`); the return type should implement
+<div class="code-header">
+
+#### fn \[function name](&self, \[args...,] \_rt: &mut [JsRuntime]) -> [anyhow::Result]\<...>
+
+</div>
+
+Argument types must implement either [`ToV8`][ToV8] (the default) or
+[`Serialize`][Serialize] (if written as `serde<T>`). The return type must implement
 either [`FromV8`][FromV8] or [`DeserializeOwned`][DeserializeOwned].
 
-Implicitly, the function name is the Rust function name case-converted using
-[`heck::ToLowerCamelCase`], but you can override this using the [`name`](#option-name--)
-or [`Symbol`](#option-symbol) option.
+> [!NOTE]
+>
+> See [Specifying types](../typing.md) for more info on how you can specify types when
+> using this crate.
 
-`js(func)` supports [async functions](#async-functions) and [variadic arguments][TODO:].
-
-[JsRuntime]: deno_core::JsRuntime
-[ToV8]: deno_core::ToV8
-[Serialize]: deno_core::serde::ser::Serialize
-[FromV8]: deno_core::FromV8
-[DeserializeOwned]: deno_core::serde::de::DeserializeOwned
+Implicitly, the function name is the Rust function name
+[converted to camelCase](heck::ToLowerCamelCase), but you can override this using the
+[`name`](#option-name--) or [`Symbol`](#option-symbol) option.
 
 <details class="toc" open>
-  <summary>Table of contents</summary>
+  <summary>Sections</summary>
 
 - [`async` functions](#async-functions)
 - [`this` argument](#this-argument)
+- [Spread arguments](#spread-arguments)
 - [Option `name = "..."`](#option-name--)
 - [Option `Symbol(...)`](#option-symbol)
 
 </details>
 
 ## `async` functions
+
+<figure>
 
 ```rust
 # use ferrosaur::js;
@@ -112,6 +119,7 @@ assert_eq!(Promise.resolve(42, rt).await?, 42);
 ```
 
 ```ts
+// Expressed in TypeScript:
 interface PromiseConstructor {
   resolve(value: number): Promise<number>;
 }
@@ -119,60 +127,156 @@ declare let Promise: PromiseConstructor;
 assert((await Promise.resolve(42)) === 42);
 ```
 
-The generated function will be an `async fn` instead of a normal `fn`. The returned
-[`Future`][Future] will be ready once the underlying JS value fulfills.
+</figure>
 
-This uses [`JsRuntime::with_event_loop_promise`][with_event_loop_promise] under the
-hood, which drives the event loop for you.
+The generated function will be an `async fn`. The returned [`Future`][Future] will be
+ready once the underlying JS value fulfills.
 
-[Future]: std::future::Future
-[with_event_loop_promise]: deno_core::JsRuntime::with_event_loop_promise
+Internally, this calls [`JsRuntime::with_event_loop_promise`][with_event_loop_promise],
+which means you don't need to drive the event loop separately.
 
 ## `this` argument
 
-By default, the JS function has a `this` value of the object from which the function is
-accessed (i.e. `&self`).
+By default, the JS function will receive the object from which the function is accessed
+(i.e. `&self`) as its `this` value. Expressed in TypeScript, the way your function is
+invoked is roughly:
 
-Alternatively, you can explicitly declare the type of `this` using the first argument:
+```ts
+interface Foo {
+  bar: () => void;
+}
+declare const foo: Foo;
+const bar = foo.bar;
+bar.call(foo);
+```
+
+Alternatively, you can explicitly declare the type of `this` using the second argument:
+
+- [`this: undefined`](#this-undefined)
+- [`this: [SomeType]`](#this-sometype)
 
 ### `this: undefined` <!-- omit from toc -->
 
+<figure>
+
 ```rust
 # use ferrosaur::js;
 # #[js(value)]
-# struct Object;
+# struct Foo;
 #[js(interface)]
-impl Object {
+impl Foo {
     #[js(func)]
-    fn function(&self, this: undefined) {}
+    fn bar(&self, this: undefined) {}
 }
 ```
 
-`this` will be `undefined`; the generated function will not have a `this` argument.
+```ts
+// Expressed in TypeScript:
+const bar = foo.bar;
+bar.call(undefined);
+```
+
+</figure>
+
+The derived Rust function will not have a `this` argument.
+
+The JS function will receive a `this` value of `undefined` when called.
 
 ### `this: [SomeType]` <!-- omit from toc -->
 
+<figure>
+
 ```rust
 # use ferrosaur::js;
 # #[js(value)]
-# struct Object;
+# struct Foo;
 #[js(interface)]
-impl Object {
+impl Foo {
     #[js(func)]
-    fn function(&self, this: SomeType) {}
+    fn bar(&self, this: Baz) {}
 }
-# #[js(value)]
-# struct SomeType;
-// struct SomeType;
+#[js(value)]
+struct Baz;
 ```
 
-This allows you to explicitly pass a value as `this` when calling the function, which
-will be subject to the same [type conversion][TODO:] rules as normal arguments.
+```ts
+// Expressed in TypeScript:
+const bar = foo.bar;
+declare const baz: Baz;
+bar.call(baz);
+```
+
+</figure>
+
+The derived Rust function will have an explicit `this` argument, for which you will
+supply a value at call time; the argument will be subject to the same
+[type conversion](../typing.md) rules as other arguments.
+
+## Spread arguments
+
+To indicate an argument should be flattened using the spread syntax at call time, prefix
+the argument name with `..` (2 dots):
+
+<figure>
+
+```rust
+# use deno_core::v8;
+# use ferrosaur::js;
+#
+# #[path = "../../../crates/ferrosaur/tests/fixture/mod.rs"]
+# mod fixture;
+# use fixture::items::global::Global;
+#
+# #[js(value)]
+# struct Console;
+#
+#[js(interface)]
+impl Console {
+    #[js(func(name(log)))]
+    pub fn log(&self, ..values: Vec<String>) {}
+    //                ^
+}
+// let rt: &mut JsRuntime;
+# let rt = &mut fixture::deno()?;
+// let console: Console;
+# let console: Console = fixture::eval_value("({ log: () => {} })", rt)?;
+console.log(vec!["🦀".into(), "🦕".into()], rt)?;
+#
+# Ok::<_, anyhow::Error>(())
+```
+
+```ts
+// Expressed in TypeScript:
+interface Console {
+  log: (...values: string[]) => void;
+}
+declare const console: Console;
+console.log(...["🦀", "🦕"]);
+```
+
+</figure>
+
+On the Rust side, a spread argument of type `A` must implement [`Iterator<Item = T>`],
+where `T` must implement either [`ToV8`][ToV8] (the default) or [`Serialize`][Serialize]
+(if written as `serde<T>`). When calling the function, pass the argument using normal
+syntax.
+
+> [!NOTE]
+>
+> See [Specifying types](../typing.md) for more info on how you can specify types when
+> using this crate.
+
+> [!TIP]
+>
+> The syntax `..args: A` is abusing the [range pattern][range] syntax, which is
+> [syntactically valid][patterns-intro] in function arguments.
 
 ## Option `name = "..."`
 
-Overrides the property key when accessing the function. Has the same usage as
+Use the specified string as key when accessing the function. This has the same usage as
 [`js(prop(name))`](prop.md#option-name--).
+
+You can also write `name(propertyKey)` if the key is identifier-like.
 
 ```rust
 # use ferrosaur::js;
@@ -187,8 +291,8 @@ impl Date {
 
 ## Option `Symbol(...)`
 
-Overrides the property key when accessing the function. Has the same usage as
-[`js(prop(Symbol))`](prop.md#option-symbol)</span>.
+Use the specified [well-known Symbol][well-known-symbols] when accessing the function.
+This has the same usage as [`js(prop(Symbol))`](prop.md#option-symbol).
 
 ```rust
 # use ferrosaur::js;
@@ -201,3 +305,18 @@ impl Date {
     fn to_primitive(&self, hint: serde<&str>) -> serde<serde_json::Value> {}
 }
 ```
+
+<!-- prettier-ignore-start -->
+
+[DeserializeOwned]: deno_core::serde::de::DeserializeOwned
+[FromV8]: deno_core::FromV8
+[Future]: std::future::Future
+[JsRuntime]: deno_core::JsRuntime
+[Serialize]: deno_core::serde::ser::Serialize
+[ToV8]: deno_core::ToV8
+[patterns-intro]: https://doc.rust-lang.org/reference/patterns.html#r-patterns.intro
+[range]: https://doc.rust-lang.org/reference/patterns.html#range-patterns
+[well-known-symbols]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#static_properties
+[with_event_loop_promise]: deno_core::JsRuntime::with_event_loop_promise
+
+<!-- prettier-ignore-end -->

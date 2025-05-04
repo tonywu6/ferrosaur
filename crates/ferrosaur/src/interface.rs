@@ -11,21 +11,20 @@ use tap::Pipe;
 
 use crate::{
     util::{
-        flag::{FlagEnum, FlagError, FlagLike},
+        flag::{FlagError, FlagLike},
         interface::{DeriveInterface, InterfaceLike, OuterType, SomeFunc, SomeType},
         no_default_fn, no_fn_body,
         property::PropertyKey,
         string::StringLike,
         Caveat, FatalErrors,
     },
-    Constructor, Function, Getter, Interface, JsItem, PropKeyString, PropKeySymbol, Property,
+    Constructor, Function, Getter, Interface, JsProp, PropKeyString, PropKeySymbol, Property,
     Setter,
 };
 
 mod func;
-mod get_index;
+mod index;
 mod prop;
-mod set_index;
 
 pub fn interface(_: Interface, item: TokenStream) -> Result<TokenStream> {
     InterfaceLike::parse
@@ -78,39 +77,23 @@ impl DeriveInterface for DeriveProperties {
         let errors = Error::accumulator();
 
         let ((FlagLike(prop), attrs), errors) =
-            FlagLike::<JsItem>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
-
-        macro_rules! unexpected {
-            ($flag:ident, $msg:literal) => {
-                $msg.pipe(JsItem::error($flag))
-                    .with_span(&sig.ident.span())
-                    .pipe(Err)
-            };
-        }
+            FlagLike::<JsProp>::exactly_one(attrs, sig.ident.span()).or_fatal(errors)?;
 
         let (impl_, errors) = match prop {
-            JsItem::Prop(FlagLike(prop)) => {
-                prop::impl_property(prop, sig).error_at::<JsItem, Property>()
+            JsProp::Prop(FlagLike(prop)) => {
+                prop::impl_property(prop, sig).error_at::<JsProp, Property>()
             }
-            JsItem::Func(FlagLike(func)) => {
-                func::impl_function(func.into(), sig).error_at::<JsItem, Function>()
+            JsProp::Func(FlagLike(func)) => {
+                func::impl_function(func.into(), sig).error_at::<JsProp, Function>()
             }
-            JsItem::New(FlagLike(ctor)) => {
-                func::impl_function(ctor.into(), sig).error_at::<JsItem, Constructor>()
+            JsProp::New(FlagLike(ctor)) => {
+                func::impl_function(ctor.into(), sig).error_at::<JsProp, Constructor>()
             }
-            JsItem::GetIndex(FlagLike(getter)) => {
-                get_index::impl_getter(getter, sig).error_at::<JsItem, Getter>()
+            JsProp::GetIndex(FlagLike(getter)) => {
+                index::impl_getter(getter, sig).error_at::<JsProp, Getter>()
             }
-            JsItem::SetIndex(FlagLike(setter)) => {
-                set_index::impl_setter(setter, sig).error_at::<JsItem, Setter>()
-            }
-            JsItem::Value(flag) => unexpected!(flag, "should be used on a struct"),
-            JsItem::Module(flag) => unexpected!(flag, "should be used on a struct"),
-            JsItem::GlobalThis(flag) => unexpected!(flag, "should be used on a struct"),
-            JsItem::Interface(flag) => unexpected!(flag, "should be used on an impl or a trait"),
-            JsItem::Iterator(flag) => unexpected!(flag, "should be used on an impl or a trait"),
-            JsItem::Function(flag) => {
-                unexpected!(flag, "should be #[js(func)] within a #[js(interface)]")
+            JsProp::SetIndex(FlagLike(setter)) => {
+                index::impl_setter(setter, sig).error_at::<JsProp, Setter>()
             }
         }
         .or_fatal(errors)?;

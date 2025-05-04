@@ -204,7 +204,7 @@ pub mod protocols {
 
     use super::values::{Fibonacci, NavigateFn};
 
-    #[js(function)]
+    #[js(callable)]
     impl NavigateFn {
         pub fn call(&self, path: serde<&str>) {}
     }

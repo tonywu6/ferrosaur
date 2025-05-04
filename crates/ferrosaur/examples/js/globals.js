@@ -26,6 +26,7 @@ import "ext:deno_webidl/00_webidl.js";
 import { URL } from "ext:deno_url/00_url.js";
 import { Console, setNoColorFns } from "ext:deno_console/01_console.js";
 import { setTimeout } from "ext:deno_web/02_timers.js";
+import { btoa, atob } from "ext:deno_web/05_base64.js";
 
 const { console, __cargo_test_stdout__ } = (() => {
   let stdout = "";
@@ -46,6 +47,8 @@ Object.entries({
   URL,
   console,
   setTimeout,
+  atob,
+  btoa,
   __cargo_test_stdout__,
 }).forEach(([key, value]) =>
   Object.defineProperty(globalThis, key, {

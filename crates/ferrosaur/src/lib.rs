@@ -1,5 +1,3 @@
-// #![doc = include_str!("../README.md")]
-
 use darling::{
     ast::NestedMeta,
     util::{path_to_string, Flag},
@@ -7,10 +5,9 @@ use darling::{
 };
 use proc_macro2::TokenStream;
 use syn::{parse_macro_input, Lit, LitStr, Meta};
-use tap::Pipe;
 
+mod callable;
 mod fast_string;
-mod function;
 mod global_this;
 mod interface;
 mod iterator;
@@ -40,14 +37,6 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
 
     let (js, errors) = FlagLike::<JsItem>::parse_macro_attribute(args).or_fatal(errors)?;
 
-    macro_rules! unexpected {
-        ($flag:ident) => {
-            "should be used within an impl or a trait annotated with #[js(interface)]"
-                .pipe(JsItem::error($flag))
-                .pipe(Err)
-        };
-    }
-
     let (js, errors) = match js.0 {
         JsItem::Value(FlagLike(value)) => value::value(value, item).error_at::<JsItem, Value>(),
 
@@ -60,17 +49,12 @@ fn js_item(args: TokenStream, item: TokenStream) -> Result<TokenStream> {
         JsItem::Interface(FlagLike(interface)) => {
             interface::interface(interface, item).error_at::<JsItem, Interface>()
         }
-        JsItem::Function(FlagLike(function)) => {
-            function::function(function, item).error_at::<JsItem, Function_>()
+        JsItem::Callable(FlagLike(callable)) => {
+            callable::callable(callable, item).error_at::<JsItem, Callable>()
         }
         JsItem::Iterator(FlagLike(iterator)) => {
             iterator::iterator(iterator, item).error_at::<JsItem, Iterator_>()
         }
-        JsItem::Prop(flag) => unexpected!(flag),
-        JsItem::Func(flag) => unexpected!(flag),
-        JsItem::New(flag) => unexpected!(flag),
-        JsItem::GetIndex(flag) => unexpected!(flag),
-        JsItem::SetIndex(flag) => unexpected!(flag),
     }
     .or_fatal(errors)?;
 
@@ -84,8 +68,13 @@ enum JsItem {
     GlobalThis(FlagLike<GlobalThis>),
     Value(FlagLike<Value>),
     Interface(FlagLike<Interface>),
-    Function(FlagLike<Function_>),
+    Callable(FlagLike<Callable>),
     Iterator(FlagLike<Iterator_>),
+}
+
+#[derive(Debug, Clone, FromMeta)]
+#[darling(rename_all = "snake_case")]
+enum JsProp {
     Prop(FlagLike<Property>),
     Func(FlagLike<Function>),
     New(FlagLike<Constructor>),
@@ -130,12 +119,15 @@ struct Value {
 }
 
 #[doc = include_str!("../../../docs/src/reference/interface.md")]
+#[doc = include_str!("../../../docs/src/reference/_snippets/todo-list.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Interface;
 
+#[doc = include_str!("../../../docs/src/reference/callable.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
-struct Function_;
+struct Callable;
 
+#[doc = include_str!("../../../docs/src/reference/iterator.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Iterator_;
 
@@ -166,6 +158,7 @@ struct Constructor {
     class: Option<Unary<PropKeyString>>,
 }
 
+#[doc = include_str!("../../../docs/src/reference/interface/get-set.md")]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Getter;
 
@@ -237,6 +230,25 @@ impl FlagEnum for JsItem {
         GlobalThis::PREFIX,
         Value::PREFIX,
         Interface::PREFIX,
+        Iterator_::PREFIX,
+    ];
+}
+
+impl FlagName for JsProp {
+    const PREFIX: &'static str = "js";
+
+    fn unit() -> Result<Self> {
+        JsProp::from_word()
+    }
+}
+
+impl FlagEnum for JsProp {
+    const PREFIXES: &'static [&'static str] = &[
+        Property::PREFIX,
+        Function::PREFIX,
+        Constructor::PREFIX,
+        Getter::PREFIX,
+        Setter::PREFIX,
     ];
 }
 
@@ -272,8 +284,8 @@ impl FlagName for Interface {
     }
 }
 
-impl FlagName for Function_ {
-    const PREFIX: &'static str = "function";
+impl FlagName for Callable {
+    const PREFIX: &'static str = "callable";
 
     fn unit() -> Result<Self> {
         Ok(Self)

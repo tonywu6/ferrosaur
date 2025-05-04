@@ -15,3 +15,8 @@ declare module "ext:deno_console/01_console.js" {
 declare module "ext:deno_web/02_timers.js" {
   export const setTimeout: typeof globalThis.setTimeout;
 }
+
+declare module "ext:deno_web/05_base64.js" {
+  export const atob: typeof globalThis.atob;
+  export const btoa: typeof globalThis.btoa;
+}

@@ -1,6 +1,8 @@
 # `#[js(prop)]`
 
-Generate a Rust function to access a JavaScript property.
+Use `#[js(prop)]` for access to JavaScript properties.
+
+<figure>
 
 ```rust
 # use ferrosaur::js;
@@ -9,12 +11,12 @@ Generate a Rust function to access a JavaScript property.
 # mod fixture;
 #
 # #[js(value)]
-# struct Lorem;
+# struct Foo;
 #
 #[js(interface)]
-impl Lorem {
+impl Foo {
     #[js(prop)]
-    fn ipsum(&self) -> serde<f64> {}
+    fn bar(&self) -> serde<f64> {}
 }
 #
 # #[tokio::main]
@@ -22,10 +24,10 @@ impl Lorem {
 # let rt = &mut fixture::deno()?;
 // let rt: &mut JsRuntime;
 #
-# let lorem: Lorem = fixture::eval_value("({ ipsum: 42 })", rt)?;
-// let lorem: Lorem;
+# let foo: Foo = fixture::eval_value("({ bar: 42 })", rt)?;
+// let foo: Foo;
 #
-assert_eq!(lorem.ipsum(rt)?, 42.0);
+assert_eq!(foo.bar(rt)?, 42.0);
 #
 # Ok(())
 # }
@@ -33,35 +35,38 @@ assert_eq!(lorem.ipsum(rt)?, 42.0);
 
 ```ts
 // Expressed in TypeScript:
-interface Lorem {
-  ipsum: number;
+interface Foo {
+  bar: number;
 }
-declare let lorem: Lorem;
-assert(lorem.ipsum === 42);
+declare let foo: Foo;
+assert(foo.bar === 42);
 ```
 
-The generated function has the signature
+</figure>
 
-<!-- prettier-ignore-start -->
-<span class="code-header">fn <span class="fn">\[name]</span>(&self, rt: &mut [JsRuntime]) -> [anyhow::Result]\<...></span>
-<!-- prettier-ignore-end -->
+The generated function has the signature:
 
-The return type indicates the expected type of the property, which should implement
-either [`FromV8`][FromV8] (the default) or [`DeserializeOwned`][DeserializeOwned] (if
-written as `serde<...>`). See [Type conversions][TODO:] for more on how types are
-specified for this crate.
+<div class="code-header">
 
-Implicitly, the property name is the Rust function name case-converted using
-[`heck::ToLowerCamelCase`], but you can override this using the [`name`](#option-name--)
-or [`Symbol`](#option-symbol) option.
+#### fn \[property name](&self, rt: &mut [JsRuntime]) -> [anyhow::Result]\<...>
 
-[anyhow::Result]: deno_core::anyhow::Result
-[JsRuntime]: deno_core::JsRuntime
-[FromV8]: deno_core::FromV8
-[DeserializeOwned]: deno_core::serde::de::DeserializeOwned
+</div>
+
+The return type indicates the expected type of the property, which must implement either
+[`FromV8`][FromV8] (the default) or [`DeserializeOwned`][DeserializeOwned] (if written
+as `serde<...>`).
+
+> [!NOTE]
+>
+> See [Specifying types](../typing.md) for more info on how you can specify types when
+> using this crate.
+
+Implicitly, the property name is the Rust function name
+[converted to camelCase](heck::ToLowerCamelCase), but you can override this using the
+[`name`](#option-name--) or [`Symbol`](#option-symbol) option.
 
 <details class="toc" open>
-  <summary>Table of contents</summary>
+  <summary>Sections</summary>
 
 - [Option `name = "..."`](#option-name--)
 - [Option `Symbol(...)`](#option-symbol)
@@ -73,51 +78,62 @@ or [`Symbol`](#option-symbol) option.
 
 Use the specified string as key when accessing the JS property.
 
+You can also write `name(propertyKey)` if the key is identifier-like.
+
+<figure>
+
 ```rust
 # use ferrosaur::js;
 # #[js(value)]
-# struct Lorem;
+# struct Foo;
 #[js(interface)]
-impl Lorem {
-    #[js(prop(name = "some property"))]
-    fn some_property(&self) -> serde<Option<u32>> {}
+impl Foo {
+    #[js(prop(name = "some bar"))]
+    fn some_bar(&self) -> serde<Option<u32>> {}
 }
 ```
 
 ```ts
-interface Lorem {
-  "some property": number | null;
+// Expressed in TypeScript:
+interface Foo {
+  "some bar": number | null;
 }
 ```
 
-You can also write `name(propertyKey)` if the key is identifier-like.
+</figure>
 
 ## Option `Symbol(...)`
 
 Use the specified [well-known Symbol][well-known-symbols] when accessing the JS
 property. The Symbol should be in camel case (i.e. the same as in JS).
 
+<figure>
+
 ```rust
 # use ferrosaur::js;
 # #[js(value)]
-# struct Lorem;
+# struct Foo;
 #[js(interface)]
-impl Lorem {
+impl Foo {
     #[js(prop(Symbol(toStringTag)))]
     fn to_string_tag(&self) -> serde<String> {}
 }
 ```
 
 ```ts
-interface Lorem {
+// Expressed in TypeScript:
+interface Foo {
   [Symbol.toStringTag]: string;
 }
 ```
 
+</figure>
+
 ## Option `with_setter`
 
-Generate a setter function in addition to a getter function. The function always has the
-name `set_[getter_name]`.
+Generate a setter function in addition to a getter function.
+
+<figure>
 
 ```rust
 # use ferrosaur::js;
@@ -125,12 +141,13 @@ name `set_[getter_name]`.
 # #[path = "../../../crates/ferrosaur/tests/fixture/mod.rs"]
 # mod fixture;
 #
-# #[js(value)] struct Lorem;
+# #[js(value)]
+# struct Foo;
 #
 #[js(interface)]
-impl Lorem {
+impl Foo {
     #[js(prop(with_setter))]
-    fn ipsum(&self) -> serde<f64> {}
+    fn bar(&self) -> serde<f64> {}
 }
 #
 # #[tokio::main]
@@ -138,35 +155,44 @@ impl Lorem {
 # let rt = &mut fixture::deno()?;
 // let rt: &mut JsRuntime;
 #
-# let lorem: Lorem = fixture::eval_value("({ ipsum: 42 })", rt)?;
-// let lorem: Lorem;
+# let foo: Foo = fixture::eval_value("({ bar: 42 })", rt)?;
+// let foo: Foo;
 #
-lorem.set_ipsum(69.0, rt)?;
-assert_eq!(lorem.ipsum(rt)?, 69.0);
+foo.set_bar(42.0, rt)?;
+assert_eq!(foo.bar(rt)?, 42.0);
 #
 # Ok(())
 # }
 ```
 
 ```ts
-interface Lorem {
-  ipsum: number;
+// Expressed in TypeScript:
+interface Foo {
+  bar: number;
 }
-declare let lorem: Lorem;
-lorem.ipsum = 69;
-assert(lorem.ipsum === 69);
+declare let foo: Foo;
+foo.bar = 42;
+assert(foo.bar === 42);
 ```
 
-The generated function has the signature
+</figure>
 
-<!-- prettier-ignore-start -->
-<span class="code-header">fn <span class="fn">set_\[getter_name]</span>(&self, value: ..., rt: &mut [JsRuntime]) -> [anyhow::Result]\<()></span>
-<!-- prettier-ignore-end -->
+The generated function has the signature:
+
+<div class="code-header">
+
+#### fn set\_\[getter name](&self, value: ..., rt: &mut [JsRuntime]) -> [anyhow::Result]\<()> <!-- omit from toc -->
+
+</div>
 
 where `value` has the same type as the getter's declared return type.
 
 <!-- prettier-ignore-start -->
 
+[DeserializeOwned]: deno_core::serde::de::DeserializeOwned
+[FromV8]: deno_core::FromV8
+[JsRuntime]: deno_core::JsRuntime
+[anyhow::Result]: deno_core::anyhow::Result
 [well-known-symbols]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#static_properties
 
 <!-- prettier-ignore-end -->

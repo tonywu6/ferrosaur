@@ -122,7 +122,7 @@ async fn test_indexing_set() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_callback() -> Result<()> {
+async fn test_callable() -> Result<()> {
     let rt = &mut deno()?;
 
     let main = Main::main_module_init(rt).await?;

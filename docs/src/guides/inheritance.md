@@ -1,1 +1,0 @@
-# Emulating inheritance

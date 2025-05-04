@@ -16,18 +16,18 @@ use crate::{
         interface::{DeriveInterface, InterfaceLike, OuterType, SomeFunc, SomeType},
         no_default_fn, no_fn_body, RecoverableErrors,
     },
-    Function_, JsItem,
+    Callable, JsItem,
 };
 
-pub fn function(_: Function_, item: TokenStream) -> Result<TokenStream> {
+pub fn callable(_: Callable, item: TokenStream) -> Result<TokenStream> {
     InterfaceLike::parse
         .parse2(item)?
-        .derive::<DeriveFunction>()
+        .derive::<DeriveCallback>()
 }
 
-struct DeriveFunction;
+struct DeriveCallback;
 
-impl DeriveInterface for DeriveFunction {
+impl DeriveInterface for DeriveCallback {
     fn impl_func(item: ImplItemFn) -> Result<SomeFunc> {
         let ImplItemFn {
             attrs,

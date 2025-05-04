@@ -90,6 +90,12 @@ fn ctor_to_call(Constructor { class }: Constructor, sig: &mut Signature) -> Cave
                 _ => None,
             };
             if let Some(ident) = ident {
+                if ident == "Self" {
+                    "constructor return type cannot be `Self`\nthis will be translated as `new Self(...)` which is likely not what you want"
+                        .pipe(Error::custom)
+                        .with_span(ty)
+                        .pipe(|e| errors.push(e));
+                }
                 PropertyKey::String(ident.to_string())
             } else {
                 "cannot infer class name from return type\nspecify `#[js(new(class(...)))]` instead"

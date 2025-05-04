@@ -1,7 +1,6 @@
 # ferrosaur
 
-<em/>So you use</em> deno_core, <em>and you want to call JavaScript from
-Rust.</em>
+<em/>So you use</em> deno_core, <em>and you want to call JavaScript from Rust.</em>
 
 ```javascript
 // You have:
@@ -29,23 +28,29 @@ let module = Module::main_module_init(rt).await?;
 let result = module.add(66.0, 3.0)?;
 ```
 
-_ferrosaur_ derives structs and functions from attributes (à la [wasm-bindgen])
-that you can use with your favorite [`JsRuntime`][JsRuntime].
-
-[JsRuntime]: https://docs.rs/deno_core/0.338.0/deno_core/struct.JsRuntime.html
-[wasm-bindgen]: https://github.com/rustwasm/wasm-bindgen#example
+_ferrosaur_ derives structs and functions (à la [wasm-bindgen]) that you can use with
+your favorite [`JsRuntime`][JsRuntime].
 
 ## Examples
 
 - [_console_][example-console] — intro using console.log, start here!
-- [_calculator_][example-calculator] — embedding ES modules for a portable
-  program
-- [_ts_][example-ts], [_ts-blank-space_][example-ts-blank-space] — workflows
-  integrating NPM dependencies and a bundler
+- [_calculator_][example-calculator] — embedding ES modules for a portable program.
+- [_ts_][example-ts], [_ts-blank-space_][example-ts-blank-space] — workflows integrating
+  NPM dependencies and a bundler.
 
 You can run examples with `cargo run --package example-<name>`.
 
+## Reference
+
+[Read the book!](https://tonywu6.github.io/ferrosaur)
+
+<!-- prettier-ignore-start -->
+
+[JsRuntime]: https://docs.rs/deno_core/0.338.0/deno_core/struct.JsRuntime.html
+[wasm-bindgen]: https://github.com/rustwasm/wasm-bindgen#example
 [example-console]: ./examples/console/src/main.rs
 [example-calculator]: ./examples/calculator
 [example-ts]: ./examples/ts
 [example-ts-blank-space]: ./examples/ts-blank-space
+
+<!-- prettier-ignore-end -->

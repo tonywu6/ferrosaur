@@ -1,3 +1,5 @@
+#![doc = include_str!("../../../../docs/src/reference/typing.md")]
+
 use darling::{Error, FromMeta, Result};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
