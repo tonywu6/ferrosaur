@@ -104,7 +104,7 @@ jobs:
       CACHE_KEY_RESTORE: ${{ steps.save-cache-key.outputs.CACHE_KEY_RESTORE }}
 
   test-examples:
-    name: Build features
+    name: Test examples
 
     needs:
       - test

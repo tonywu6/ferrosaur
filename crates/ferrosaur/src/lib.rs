@@ -1,3 +1,5 @@
+//! **Usage documentation** at <https://tonywu6.github.io/ferrosaur/>.
+
 use darling::{
     ast::NestedMeta,
     util::{path_to_string, Flag},
@@ -26,7 +28,6 @@ use crate::util::{
 };
 
 /// Macro for deriving `struct`s and `impl`s for use with `deno_core`.
-/// Please see the [crate-level documentation](.).
 #[proc_macro_attribute]
 pub fn js(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     js_item(attr.into(), item.into()).or_error().into()

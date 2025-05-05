@@ -1,13 +1,19 @@
 [package]
 name = "ferrosaur"
 publish = true
-readme = "../../README.md"
 version = "0.1.0"
 
-authors.workspace = true
 edition.workspace = true
+
+authors.workspace = true
 license.workspace = true
 repository.workspace = true
+
+categories = ["development-tools::ffi", "web-programming"]
+description = "Static codegen for deno_core. 🦀📲🦕"
+documentation = "https://tonywu6.github.io/ferrosaur/"
+keywords = ["deno", "v8", "javascript"]
+readme = "README.md"
 
 [lib]
 proc-macro = true
@@ -20,9 +26,6 @@ quote = { workspace = true }
 syn = { workspace = true }
 tap = { workspace = true }
 
-# only for docs
-deno_core = { workspace = true, optional = true }
-
 [dev-dependencies]
 anyhow = { workspace = true }
 deno_console = { workspace = true }
@@ -34,9 +37,3 @@ insta = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
-
-[features]
-_unstable-docs = ["dep:deno_core"]
-
-[package.metadata.docs.rs]
-features = ["_unstable-docs"]
