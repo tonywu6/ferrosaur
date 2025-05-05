@@ -1,37 +1,40 @@
-use std::{rc::Rc, sync::Arc};
+pub use deno_core::{self, JsRuntime};
 
 use anyhow::Result;
-pub use deno_runtime::deno_core;
-use deno_runtime::{
-    deno_core::{ModuleSpecifier, StaticModuleLoader},
-    deno_fs::RealFs,
-    deno_permissions::PermissionsContainer,
-    permissions::RuntimePermissionDescriptorParser,
-    worker::{MainWorker, WorkerOptions, WorkerServiceOptions},
-};
+use deno_core::RuntimeOptions;
+use deno_web::TimersPermission;
 
-pub fn deno(url: ModuleSpecifier) -> Result<MainWorker> {
-    Ok(MainWorker::bootstrap_from_options(
-        url,
-        WorkerServiceOptions {
-            blob_store: Default::default(),
-            broadcast_channel: Default::default(),
-            feature_checker: Default::default(),
-            fs: Arc::new(RealFs),
-            module_loader: Rc::new(StaticModuleLoader::default()),
-            node_services: Default::default(),
-            npm_process_state_provider: Default::default(),
-            permissions: PermissionsContainer::allow_all(Arc::new(
-                RuntimePermissionDescriptorParser::new(Arc::new(RealFs)),
-            )),
-            root_cert_store_provider: Default::default(),
-            fetch_dns_resolver: Default::default(),
-            shared_array_buffer_store: Default::default(),
-            compiled_wasm_module_store: Default::default(),
-            v8_code_cache: Default::default(),
-        },
-        WorkerOptions {
-            ..Default::default()
-        },
-    ))
+mod globals;
+
+pub fn deno() -> Result<JsRuntime> {
+    with_options(Default::default())
+}
+
+pub fn with_options(options: RuntimeOptions) -> Result<JsRuntime> {
+    Ok(JsRuntime::try_new(RuntimeOptions {
+        extensions: vec![
+            deno_console::deno_console::init(),
+            deno_webidl::deno_webidl::init(),
+            deno_url::deno_url::init(),
+            deno_web::deno_web::init::<Permissions>(Default::default(), None),
+            test_fixture::init(),
+        ],
+        ..options
+    })?)
+}
+
+deno_core::extension!(
+    test_fixture,
+    deps = [deno_web],
+    ops = [globals::op_example_read_file],
+    esm_entry_point = "ext:globals.js",
+    esm = ["ext:globals.js" = "src/globals.js"]
+);
+
+struct Permissions;
+
+impl TimersPermission for Permissions {
+    fn allow_hrtime(&mut self) -> bool {
+        true
+    }
 }

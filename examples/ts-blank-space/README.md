@@ -22,7 +22,7 @@ To run this example, run:
 
 <figcaption>
 
-Output of this example. Notice the extra whitespace in the function signatures.
+Output of this example. Notice the extra whitespace in declarations.
 
 </figcaption>
 

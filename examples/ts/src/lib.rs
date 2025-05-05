@@ -1,6 +1,6 @@
 // `lib.rs` does the following things:
 //
-// - Embed the `typescript` library and export it as the `TypeScript` struct.
+// - Embed NPM dependencies and export them as Rust structs.
 // - Provide some reusable interface definitions and utility functions.
 //
 // The [`ts-blank-space`](/docs/src/examples/ts-blank-space.md) example reuses
@@ -11,11 +11,10 @@
 use ferrosaur::js;
 
 #[js(module("../dist/typescript.js", url("npm:typescript"), fast(unsafe_debug)))]
-pub struct TypeScript;
+pub struct TypeScriptLib;
 
 // - The actual embedded file is `"../dist/typescript.js"`. This file is emitted by
-//   [esbuild] during the build step. The actual source file is [`lib.ts`](#srclibts).
-//   See also [`build.rs`](#buildrs) and [`build.js`](#buildjs).
+//   [esbuild] during the build step. The actual source file is under [`src/deps`](#srcdeps).
 //
 // - `url("npm:typescript")` [sets the module specifier][module-url] to `"npm:typescript"`.
 //
@@ -29,12 +28,28 @@ pub struct TypeScript;
 //   `esbuild` already [ensures that its build output is ASCII-only][esbuild-charset],
 //   so it is safe in this case.
 
+// ### Embedding `@typescript/vfs`
+
+#[js(module(
+    "../dist/typescript-vfs.js",
+    url("npm:@typescript/vfs"),
+    fast(unsafe_debug)
+))]
+pub struct TypeScriptVfs;
+
+// This example additionally uses [`@typescript/vfs`] to setup the files necessary
+// for `typescript` to type check. These files are also embedded into the program,
+// albeit via a dedicated [build step](#buildrs).
+
+// [`@typescript/vfs`] is the same system that enables the [TypeScript playground](https://www.typescriptlang.org/play/)
+// to run in the browser.
+
 // ### Declaring interfaces for [`lib.ts`](#srclibts)
 
 #[js(interface)]
 pub trait Compiler {
     #[js(func)]
-    fn create_program(&self, ..files: serde<Vec<String>>) -> Program {}
+    fn create_program(&self, root: serde<HashMap<String, String>>) -> Program {}
 }
 
 #[js(value)]
@@ -69,6 +84,10 @@ impl Compiler for Example {}
 
 // This function defines a few properties on `globalThis` to be used in the example.
 
+// Notably, it injects `TYPESCRIPT_LIB`. On the Rust side, this is the [embedded](#buildrs)
+// declaration files. On the JavaScript side, this is used to create the
+// [virtual file system](#embedding-typescriptvfs).
+
 pub fn inject_env_vars(rt: &mut JsRuntime) -> Result<()> {
     #[js(global_this)]
     struct Global;
@@ -100,6 +119,7 @@ pub fn inject_env_vars(rt: &mut JsRuntime) -> Result<()> {
 // <details>
 //   <summary><code>mod dts</code></summary>
 
+// `lib.dts.rs` is the generated file that [embeds](#buildrs) declaration files.
 // See [build.rs](#buildrs).
 
 mod dts {
@@ -111,12 +131,15 @@ mod dts {
 // <details>
 //   <summary>Additional setup code</summary>
 
+use std::collections::HashMap;
+
 use anyhow::Result;
 
 use example_runtime::deno_core::{self, JsRuntime};
 
 // </details>
 
+// [`@typescript/vfs`]:     https://www.npmjs.com/package/@typescript/vfs
 // [esbuild]:               https://esbuild.github.io/
 // [duck-typing]:           https://en.wikipedia.org/wiki/Duck_typing
 // [esbuild-charset]:       https://esbuild.github.io/api/#charset

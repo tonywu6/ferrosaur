@@ -1,4 +1,4 @@
-import { examplePage } from "../example.ts";
+import { examplePage } from "./example.ts";
 
 if (Deno.args[0] === "supports") {
   Deno.exit(Deno.args[1] === "html" ? 0 : 1);

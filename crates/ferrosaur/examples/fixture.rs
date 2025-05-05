@@ -164,7 +164,7 @@ pub mod funcs {
 
     #[js(interface)]
     impl Global {
-        #[js(func(name(__cargo_test_stdout__)))]
+        #[js(prop(name(__cargo_test_stdout__)))]
         pub fn cargo_test_stdout(&self) -> String {}
     }
 

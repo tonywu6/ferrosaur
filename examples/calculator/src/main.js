@@ -1,31 +1,37 @@
 export class Calculator {
+  /** @type {number} */
   value;
+
+  /** @type {(string|number)[]} */
   history;
 
-  /**
-   * @param {number} value
-   */
+  /** @param {number} value */
   constructor(value = 0) {
     this.value = value;
     this.history = [value];
   }
 
+  /** @param {number} value */
   add(value) {
     return Calculator.derive(this, "+", value);
   }
 
+  /** @param {number} value */
   sub(value) {
     return Calculator.derive(this, "-", value);
   }
 
+  /** @param {number} value */
   mul(value) {
     return Calculator.derive(this, "*", value);
   }
 
+  /** @param {number} value */
   div(value) {
     return Calculator.derive(this, "/", value);
   }
 
+  /** @param {unknown} hint */
   [Symbol.toPrimitive](hint) {
     switch (hint) {
       case "number":

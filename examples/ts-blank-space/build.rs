@@ -3,10 +3,10 @@ use std::process::{Command, Stdio};
 use anyhow::{bail, Context, Result};
 
 fn main() -> Result<()> {
-    println!("cargo::rerun-if-changed=build.js");
+    println!("cargo::rerun-if-changed=build.ts");
 
     let built = Command::new("deno")
-        .args(["run", "--allow-all", "build.js"])
+        .args(["run", "--allow-all", "build.ts"])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()

@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": ["esnext", "dom", "deno.ns"],
+    "checkJs": true,
     "strict": true
   },
   "exclude": [
@@ -12,6 +12,7 @@
     "docs/src/app"
   ],
   "imports": {
+    "@typescript/vfs": "npm:@typescript/vfs@^1.6.1",
     "esbuild": "npm:esbuild@^0.25.2",
     "prettier": "npm:prettier@^3.5.3",
     "ts-blank-space": "npm:ts-blank-space@^0.6.1",
@@ -19,6 +20,7 @@
   },
   "nodeModulesDir": "auto",
   "tasks": {
-    "format": "deno run -A npm:prettier --write docs/app docs/src"
+    "prettier": "deno run -A npm:prettier --write docs/app docs/src",
+    "ci:tsc": "tsc -b"
   }
 }

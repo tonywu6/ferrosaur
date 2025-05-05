@@ -153,6 +153,7 @@ dist
 
 /vendor
 
-dist
+/build
+/dist
 
 /.bin

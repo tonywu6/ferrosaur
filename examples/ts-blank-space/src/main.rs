@@ -14,26 +14,28 @@ impl Main {
 
 // The file `../dist/main.js` is emitted by [esbuild] during `cargo build`.
 //
-// See [`build.js`](/examples/ts-blank-space/build.js) which slightly processes the
+// See [`build.ts`](/examples/ts-blank-space/build.ts) which slightly processes the
 // `ts-blank-space` library so that it can be used in this example.
 
 // ## Setup the runtime
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let rt = &mut deno(Main::module_url()?)?.js_runtime;
+    let rt = &mut deno()?;
 
     // ## Initialize `typescript`
 
-    use example_ts::{inject_env_vars, TypeScript};
+    use example_ts::{inject_env_vars, TypeScriptLib, TypeScriptVfs};
 
-    // `example_ts::TypeScript` is provided by the [`ts` example](/docs/src/examples/ts.md#srclibrs).
+    TypeScriptLib::side_module_init(rt).await?;
 
-    TypeScript::side_module_init(rt).await?;
+    TypeScriptVfs::side_module_init(rt).await?;
+
+    // `TypeScriptLib` and `TypeScriptVfs` are provided by the [`ts` example](/docs/src/examples/ts.md#srclibrs).
+
     inject_env_vars(rt)?;
 
     // `inject_env_vars` sets up some data that `typescript` requires in order to run.
-
     // See [`build.rs` in the `ts` example](/docs/src/examples/ts.md#buildrs) for more info.
 
     // ## Initialize `ts-blank-space`
@@ -42,9 +44,11 @@ async fn main() -> Result<()> {
 
     // ## Run `ts-blank-space` on [`examples/ts/src/lib.ts`](/docs/src/examples/ts.md#srclibts)
 
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ts/src/lib.ts");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ts/src/lib.ts");
 
-    let js = ts.blank_space(std::fs::read_to_string(&source)?, rt)?;
+    let file = std::fs::read_to_string(&path)?;
+
+    let js = ts.blank_space(&file, rt)?;
 
     // ## Evaluate the type-stripped result
 
@@ -86,8 +90,10 @@ async fn main() -> Result<()> {
 
     // ## Use `lib.ts` to type check itself
 
+    let root = HashMap::new().tap_mut(|map| drop(map.insert("src/lib.ts".into(), file)));
+
     let errors = module
-        .create_program(vec![source.to_string_lossy().into()], rt)?
+        .create_program(root, rt)?
         .print_diagnostics(true, rt)?;
 
     println!("{errors}");
@@ -106,9 +112,10 @@ async fn main() -> Result<()> {
 // <details>
 //   <summary>Additional setup code</summary>
 
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::Result;
+use tap::Tap;
 
 use example_runtime::{
     deno,

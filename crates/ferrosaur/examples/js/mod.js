@@ -20,6 +20,9 @@ class Shape {
     throw new Error("not implemented");
   }
 
+  /**
+   * @param {string} hint
+   */
   [Symbol.toPrimitive](hint) {
     if (hint === "number") {
       return this.area();
@@ -34,6 +37,10 @@ class Shape {
 }
 
 export class Rectangle extends Shape {
+  /**
+   * @param {number} width
+   * @param {number} height
+   */
   constructor(width, height) {
     super();
     /** @type {number} */
@@ -42,10 +49,12 @@ export class Rectangle extends Shape {
     this.height = height;
   }
 
+  /** @override */
   area() {
     return this.width * this.height;
   }
 
+  /** @override */
   [Symbol.toStringTag]() {
     return `rect ${this.width}x${this.height}`;
   }

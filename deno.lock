@@ -1,21 +1,13 @@
 {
   "version": "4",
   "specifiers": {
-    "jsr:@std/encoding@*": "1.0.9",
-    "jsr:@std/path@*": "1.0.8",
-    "npm:esbuild@0.25.2": "0.25.2",
+    "npm:@typescript/vfs@*": "1.6.1_typescript@5.8.3",
+    "npm:@typescript/vfs@^1.6.1": "1.6.1_typescript@5.8.3",
     "npm:esbuild@~0.25.2": "0.25.2",
     "npm:prettier@^3.5.3": "3.5.3",
     "npm:ts-blank-space@~0.6.1": "0.6.1",
+    "npm:typescript@*": "5.8.3",
     "npm:typescript@^5.8.3": "5.8.3"
-  },
-  "jsr": {
-    "@std/encoding@1.0.9": {
-      "integrity": "025b8f18eb1749bc30d1353bf48b77d1eb5e35610220fa226f5a046b9240c5d7"
-    },
-    "@std/path@1.0.8": {
-      "integrity": "548fa456bb6a04d3c1a1e7477986b6cffbce95102d0bb447c67c4ee70e0364be"
-    }
   },
   "npm": {
     "@esbuild/aix-ppc64@0.25.2": {
@@ -93,6 +85,19 @@
     "@esbuild/win32-x64@0.25.2": {
       "integrity": "sha512-kM3HKb16VIXZyIeVrM1ygYmZBKybX8N4p754bw390wGO3Tf2j4L2/WYL+4suWujpgf6GBYs3jv7TyUivdd05JA=="
     },
+    "@typescript/vfs@1.6.1_typescript@5.8.3": {
+      "integrity": "sha512-JwoxboBh7Oz1v38tPbkrZ62ZXNHAk9bJ7c9x0eI5zBfBnBYGhURdbnh7Z4smN/MV48Y5OCcZb58n972UtbazsA==",
+      "dependencies": [
+        "debug",
+        "typescript"
+      ]
+    },
+    "debug@4.4.0": {
+      "integrity": "sha512-6WTZ/IxCY/T6BALoZHaE4ctp9xm+Z5kY/pzYaCHRFeyVhojxlrm+46y68HA6hr0TcwEssoxNiDEUJQjfPZ/RYA==",
+      "dependencies": [
+        "ms"
+      ]
+    },
     "esbuild@0.25.2": {
       "integrity": "sha512-16854zccKPnC+toMywC+uKNeYSv+/eXkevRAfwRD/G9Cleq66m8XFIrigkbvauLLlCfDL45Q2cWegSg53gGBnQ==",
       "dependencies": [
@@ -123,6 +128,9 @@
         "@esbuild/win32-x64"
       ]
     },
+    "ms@2.1.3": {
+      "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="
+    },
     "prettier@3.5.3": {
       "integrity": "sha512-QQtaxnoDJeAkDvDKWCLiwIXkTgRhwYDEQCghU9Z6q03iyek/rxRh/2lC3HB7P8sWT2xC/y5JDctPLBIGzHKbhw=="
     },
@@ -138,6 +146,7 @@
   },
   "workspace": {
     "dependencies": [
+      "npm:@typescript/vfs@^1.6.1",
       "npm:esbuild@~0.25.2",
       "npm:prettier@^3.5.3",
       "npm:ts-blank-space@~0.6.1",

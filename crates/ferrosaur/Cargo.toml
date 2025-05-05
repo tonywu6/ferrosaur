@@ -20,7 +20,7 @@ proc-macro = true
 
 [dependencies]
 darling = "0.20.10"
-heck = "0.5.0"
+heck = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }
@@ -33,6 +33,7 @@ deno_core = { workspace = true }
 deno_url = { workspace = true }
 deno_web = { workspace = true }
 deno_webidl = { workspace = true }
+example-runtime = { path = "../../examples/_runtime" }
 insta = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

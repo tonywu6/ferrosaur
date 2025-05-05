@@ -1,6 +1,4 @@
-import { encodeHex } from "jsr:@std/encoding/hex";
-import * as pathlib from "jsr:@std/path";
-import * as esbuild from "npm:esbuild@0.25.2";
+import * as esbuild from "esbuild";
 
 const relpath = (path: string) => new URL(path, import.meta.url).pathname;
 
@@ -30,7 +28,7 @@ const esm: string[] = [];
 
 for (const [path, file] of Object.entries(built.metafile.outputs)) {
   if (file.entryPoint) {
-    const name = JSON.stringify(`./${pathlib.basename(path)}`);
+    const name = JSON.stringify(`./${basename(path)}`);
     switch (path.split(".").pop()) {
       case "css":
         css.push(`@import url(${name});`);
@@ -75,7 +73,7 @@ function remoteCSS(): esbuild.Plugin {
           if (kind !== "url-token") {
             return undefined;
           }
-          if (!pathlib.extname(path)) {
+          if (!extname(path)) {
             path += "#.bin";
           }
           return { path, namespace: "remote-url" };
@@ -133,9 +131,13 @@ function remoteCSS(): esbuild.Plugin {
       async function cachedFetch(...[input, init]: Parameters<typeof fetch>) {
         const key = await crypto.subtle
           .digest("SHA-256", new TextEncoder().encode(JSON.stringify({ input, init })))
-          .then(encodeHex);
+          .then((buf) =>
+            [...new Uint8Array(buf)]
+              .map((byte) => byte.toString(16).padStart(2, "0"))
+              .join(""),
+          );
 
-        const cachePath = pathlib.join(cacheDir, key);
+        const cachePath = join(cacheDir, key);
 
         try {
           return await Deno.readFile(cachePath);
@@ -160,4 +162,22 @@ function remoteCSS(): esbuild.Plugin {
       }
     },
   };
+}
+
+function basename(path: string) {
+  return path.split("/").pop() ?? path;
+}
+
+function extname(path: string) {
+  return path.split(".").pop() ?? "";
+}
+
+function join(p1: string, p2: string) {
+  if (p1.endsWith("/")) {
+    p1 = p1.slice(0, -1);
+  }
+  if (p2.startsWith("/")) {
+    p2 = p2.slice(1);
+  }
+  return `${p1}/${p2}`;
 }

@@ -1,55 +1,55 @@
 import ts from "npm:typescript";
+import {
+  createDefaultMapFromNodeModules,
+  createSystem,
+  createVirtualCompilerHost,
+} from "npm:@typescript/vfs";
 
-export function createProgram(...files: string[]) {
-  const host = createCompilerHost();
+export function createProgram(root: Record<string, string>) {
+  const options: ts.CompilerOptions = {
+    strict: true,
+    noEmit: true,
+    lib: [ts.getDefaultLibFileName({ target: ts.ScriptTarget.ESNext })],
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    moduleDetection: ts.ModuleDetectionKind.Force,
+  };
 
-  const program = ts.createProgram(
-    files,
-    {
-      strict: true,
-      noEmit: true,
-      target: ts.ScriptTarget.ESNext,
-      lib: ["ESNext"],
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Bundler,
-      moduleDetection: ts.ModuleDetectionKind.Force,
-    },
-    host,
-  );
+  let files: Map<string, string>;
+
+  if (globalThis.TYPESCRIPT_LIB) {
+    files = new Map();
+    for (const [lib, dts] of Object.entries(globalThis.TYPESCRIPT_LIB)) {
+      files.set(`/${lib}`, dts);
+    }
+  } else {
+    files = createDefaultMapFromNodeModules(options, ts);
+  }
+
+  for (const [name, src] of Object.entries(root)) {
+    files.set(name, src);
+  }
+
+  const { compilerHost } = createVirtualCompilerHost(createSystem(files), options, ts);
+
+  const program = ts.createProgram(Object.keys(root), options, compilerHost);
 
   return {
     printDiagnostics: (colored = true) => {
-      const diagnostics = program.getSemanticDiagnostics();
+      const diagnostics = [
+        ...program.getGlobalDiagnostics(),
+        ...program.getSyntacticDiagnostics(),
+        ...program.getDeclarationDiagnostics(),
+        ...program.getSemanticDiagnostics(),
+      ];
       if (colored) {
-        return ts.formatDiagnosticsWithColorAndContext(diagnostics, diagnosticsHost);
+        return ts.formatDiagnosticsWithColorAndContext(diagnostics, compilerHost);
       } else {
-        return ts.formatDiagnostics(diagnostics, diagnosticsHost);
+        return ts.formatDiagnostics(diagnostics, compilerHost);
       }
     },
   };
-}
-
-function createCompilerHost(): ts.CompilerHost {
-  const host = ts.createCompilerHost({});
-
-  const { readFile } = host;
-
-  const runtimeDir = new URL(".", import.meta.url).pathname;
-
-  host.getDefaultLibLocation = () => runtimeDir;
-
-  host.readFile = (fileName) => {
-    if (fileName.startsWith(runtimeDir)) {
-      const suffix = fileName.slice(runtimeDir.length);
-      const content = globalThis.TYPESCRIPT_LIB?.[suffix];
-      if (typeof content === "string") {
-        return content;
-      }
-    }
-    return readFile(fileName);
-  };
-
-  return host;
 }
 
 declare global {
@@ -58,9 +58,3 @@ declare global {
     var CARGO_MANIFEST_DIR: string | undefined;
   }
 }
-
-const diagnosticsHost: ts.FormatDiagnosticsHost = {
-  getCurrentDirectory: () => globalThis.CARGO_MANIFEST_DIR || Deno.cwd(),
-  getCanonicalFileName: (name) => name,
-  getNewLine: () => "\n",
-};

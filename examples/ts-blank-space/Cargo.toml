@@ -17,6 +17,7 @@ example-runtime = { path = "../_runtime" }
 example-ts = { path = "../ts" }
 ferrosaur = { workspace = true }
 insta = { workspace = true }
+tap = { workspace = true }
 tokio = { workspace = true }
 
 [build-dependencies]

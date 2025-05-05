@@ -156,9 +156,9 @@ body {
 
     &.toc {
       > summary {
+        margin-block-end: 0;
         font-weight: bold;
         cursor: pointer;
-        margin-block-end: 0;
       }
 
       li {

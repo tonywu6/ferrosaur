@@ -35,10 +35,9 @@ actually does not have access to these types.
 - [`src/lib.rs`](#srclibrs)
 - [`src/lib.ts`](#srclibts)
 - [`src/main.rs`](#srcmainrs)
-- [`build.js`](#buildjs)
+- [`build.ts`](#buildts)
 - [`build.rs`](#buildrs)
-- [`src/typescript.ts`](#srctypescriptts)
-- [`src/globals.ts`](#srcglobalsts)
+- [`src/deps/*`](#srcdeps)
 
 </details>
 
@@ -73,22 +72,22 @@ embedded by [`lib.rs`](#srclibrs).
 
 </details>
 
-## `build.js`
+## `build.ts`
 
-`build.js` compiles TypeScript files to JavaScript using [esbuild] at the time of
+`build.ts` compiles TypeScript files to JavaScript using [esbuild] at the time of
 `cargo build`.
 
 Compiling is necessary because:
 
-- [`deno_runtime`] itself does not run TypeScript files.
+- [`deno_core`] itself does not run TypeScript files.
 - The `typescript` lib is distributed in [CommonJS]. esbuild transforms it into ESM so
   that it can be [imported](#srclibrs).
 
 <details>
-  <summary>File <code>build.js</code></summary>
+  <summary>File <code>build.ts</code></summary>
 
-```js
-{{#include build.js}}
+```ts
+{{#include build.ts}}
 ```
 
 </details>
@@ -97,7 +96,7 @@ Compiling is necessary because:
 
 [`build.rs`][build-scripts] does a few things:
 
-- Run [`build.js`](#buildjs) via [`deno`] to compile the `.ts` files used in this
+- Run [`build.ts`](#buildts) via [`deno`] to compile the `.ts` files used in this
   example.
 
 - Generate Rust code that will embed TypeScript's [`lib` declarations][typescript-lib]
@@ -118,31 +117,24 @@ Compiling is necessary because:
 
 </details>
 
-## `src/typescript.ts`
+## `src/deps/*`
 
-`typescript.ts` re-exports the `typescript` library. This file is then
-[bundled](#buildjs).
+These files re-export the respective libs for [bundling](#buildts).
 
 <details>
-  <summary>File <code>src/typescript.ts</code></summary>
+  <summary>File <code>src/deps/typescript.ts</code></summary>
 
 ```ts
-{{#include src/typescript.ts}}
+{{#include src/deps/typescript.ts}}
 ```
 
 </details>
 
-## `src/globals.ts`
-
-`globals.ts` defines several Node-specific identifiers on `globalThis`.
-
-This tricks `typescript` into using Node APIs, which [`deno_runtime`] has support for.
-
 <details>
-  <summary>File <code>src/globals.ts</code></summary>
+  <summary>File <code>src/deps/typescript-vfs.ts</code></summary>
 
 ```ts
-{{#include src/globals.ts}}
+{{#include src/deps/typescript-vfs.ts}}
 ```
 
 </details>

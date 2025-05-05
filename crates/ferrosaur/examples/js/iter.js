@@ -1,3 +1,6 @@
+/**
+ * @param {number} iter
+ */
 export function* fibonacci(iter) {
   let a = 0;
   let b = 1;

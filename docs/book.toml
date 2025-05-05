@@ -45,7 +45,7 @@ command = "cargo bin mdbook-alerts"
 [preprocessor.app]
 after = ["links"]
 before = ["rustdoc-link"]
-command = "deno run --allow-all app/build/preprocessor.ts"
+command = "deno run --allow-all app/build/mdbook.ts"
 
 [_metadata.socials."/"]
 image = "https://opengraph.githubassets.com/main/tonywu6/ferrosaur"

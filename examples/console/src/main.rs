@@ -125,7 +125,7 @@ impl Console {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let rt: &mut JsRuntime = &mut js_runtime()?;
+    let rt: &mut JsRuntime = &mut deno()?;
     // all APIs derived using this crate require a &mut JsRuntime
     // here I'm using a preconfigured runtime, see examples/_runtime for more
 
@@ -151,17 +151,8 @@ async fn main() -> Result<()> {
 //   <summary>Additional setup code for this example</summary>
 
 use anyhow::Result;
-use example_runtime::{
-    deno,
-    deno_core::{self, JsRuntime},
-};
 
-/// See [example_runtime::deno].
-fn js_runtime() -> Result<JsRuntime> {
-    // MainWorker requires a main module url, although this example doesn't use modules
-    let main_module_url = "file:///main.js".parse()?;
-    Ok(deno(main_module_url)?.js_runtime)
-}
+use example_runtime::{deno, deno_core, JsRuntime};
 
 // </details>
 

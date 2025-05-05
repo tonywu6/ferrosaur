@@ -5,7 +5,15 @@ version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
+repository.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-deno_runtime = { workspace = true }
+deno_console = { workspace = true }
+deno_core = { workspace = true }
+deno_error = { workspace = true }
+deno_url = { workspace = true }
+deno_web = { workspace = true }
+deno_webidl = { workspace = true }
+tap = { workspace = true }

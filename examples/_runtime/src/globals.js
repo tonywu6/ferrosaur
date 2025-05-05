@@ -1,4 +1,4 @@
-// @ts-check
+import { core } from "ext:core/mod.js";
 
 import "ext:deno_console/01_console.js";
 import "ext:deno_url/00_url.js";
@@ -23,37 +23,52 @@ import "ext:deno_web/15_performance.js";
 import "ext:deno_web/16_image_data.js";
 import "ext:deno_webidl/00_webidl.js";
 
-import { URL } from "ext:deno_url/00_url.js";
 import { Console, setNoColorFns } from "ext:deno_console/01_console.js";
+import { URL } from "ext:deno_url/00_url.js";
 import { setTimeout } from "ext:deno_web/02_timers.js";
-import { btoa, atob } from "ext:deno_web/05_base64.js";
+import { atob, btoa } from "ext:deno_web/05_base64.js";
+import { TextDecoder } from "ext:deno_web/08_text_encoding.js";
 
-const { console, __cargo_test_stdout__ } = (() => {
+/** @type {Pick<typeof globalThis.Deno, "cwd" | "readTextFileSync">} */
+const Deno = {
+  cwd: () => core.ops.op_example_cwd(),
+  readTextFileSync: (path) =>
+    new TextDecoder().decode(core.ops.op_example_read_file(path.toString())),
+};
+
+const publicFinal = {
+  configurable: false,
+  enumerable: true,
+};
+
+Object.entries({
+  URL,
+  Deno,
+  atob,
+  btoa,
+  setTimeout,
+}).forEach(([key, value]) =>
+  Object.defineProperty(globalThis, key, {
+    get: () => value,
+    ...publicFinal,
+  }),
+);
+
+{
   let stdout = "";
-
-  const console = new Console((msg) => (stdout += msg));
-
-  const __cargo_test_stdout__ = () => stdout;
-
+  const console = new Console((msg) => (core.print(msg), (stdout += msg)));
+  Object.defineProperties(globalThis, {
+    console: {
+      get: () => console,
+      ...publicFinal,
+    },
+    __cargo_test_stdout__: {
+      get: () => stdout,
+      ...publicFinal,
+    },
+  });
   setNoColorFns(
     () => true,
     () => true,
   );
-
-  return { console, __cargo_test_stdout__ };
-})();
-
-Object.entries({
-  URL,
-  console,
-  setTimeout,
-  atob,
-  btoa,
-  __cargo_test_stdout__,
-}).forEach(([key, value]) =>
-  Object.defineProperty(globalThis, key, {
-    get: () => value,
-    configurable: false,
-    enumerable: true,
-  }),
-);
+}
