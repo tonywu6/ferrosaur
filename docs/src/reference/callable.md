@@ -11,6 +11,14 @@ This could be used to describe functions that return other functions:
 # use ferrosaur::js;
 #
 # #[js(value)]
+# struct Logger;
+#
+#[js(callable)]
+impl Logger {
+    fn call(&self, message: serde<&str>) {}
+}
+
+# #[js(value)]
 # struct Logging;
 #
 #[js(interface)]
@@ -18,24 +26,18 @@ impl Logging {
     #[js(func)]
     fn with_prefix(&self, prefix: serde<&str>) -> Logger {}
 }
-#
-# #[js(value)]
-# struct Logger;
-#
-#[js(callable)]
-impl Logger {
-    fn call(&self, message: serde<&str>) {}
-}
 ```
 
 ```ts
 // Expressed in TypeScript:
+
+interface Logger {
+  (message: string): void;
+}
+
 interface Logging {
   with_prefix: (prefix: string) => Logging;
   //           (prefix: string) => (message: string) => void
-}
-interface Logger {
-  (message: string): void;
 }
 ```
 

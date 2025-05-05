@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
 // ---
 //
 // <details>
-//   <summary>Other setup code for this example</summary>
+//   <summary>Additional setup code for this example</summary>
 
 use anyhow::Result;
 use deno_core::{JsRuntime, RuntimeOptions};

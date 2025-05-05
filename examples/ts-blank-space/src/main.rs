@@ -1,4 +1,4 @@
-// ### Embed `ts-blank-space`
+// ## Embed `ts-blank-space`
 
 use ferrosaur::js;
 
@@ -17,17 +17,17 @@ impl Main {
 // See [`build.js`](/examples/ts-blank-space/build.js) which slightly processes the
 // `ts-blank-space` library so that it can be used in this example.
 
-// ### Setup the runtime
+// ## Setup the runtime
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let rt = &mut deno(Main::module_url()?)?.js_runtime;
 
-    // ### Initialize `typescript`
+    // ## Initialize `typescript`
 
     use example_ts::{inject_env_vars, TypeScript};
 
-    // `example_ts::TypeScript` is provided by [the `ts` example](/docs/src/examples/ts.md#srclibrs).
+    // `example_ts::TypeScript` is provided by the [`ts` example](/docs/src/examples/ts.md#srclibrs).
 
     TypeScript::side_module_init(rt).await?;
     inject_env_vars(rt)?;
@@ -36,17 +36,17 @@ async fn main() -> Result<()> {
 
     // See [`build.rs` in the `ts` example](/docs/src/examples/ts.md#buildrs) for more info.
 
-    // ### Initialize `ts-blank-space`
+    // ## Initialize `ts-blank-space`
 
     let ts = Main::main_module_init(rt).await?;
 
-    // ### Run `ts-blank-space` on [`examples/ts/src/lib.ts`](/docs/src/examples/ts.md#srclibts)
+    // ## Run `ts-blank-space` on [`examples/ts/src/lib.ts`](/docs/src/examples/ts.md#srclibts)
 
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../ts/src/lib.ts");
 
     let js = ts.blank_space(std::fs::read_to_string(&source)?, rt)?;
 
-    // ### Evaluate the type-stripped result ad hoc
+    // ## Evaluate the type-stripped result
 
     #[js(value(of_type(v8::Object)))]
     struct Example;
@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
     // Here we are saying `Example`, our ad-hoc ES module produced by `ts-blank-space`, comforms
     // to the interface as described by the `Compiler` trait, which is correct.
 
-    // ### Pretty-print the type-stripped result
+    // ## Pretty-print the type-stripped result
 
     use bat::PrettyPrinter;
 
@@ -84,7 +84,7 @@ async fn main() -> Result<()> {
 
     // `PrettyPrinter` courtesy of [`bat`](https://crates.io/crates/bat).
 
-    // ### Use `lib.ts` to type check itself
+    // ## Use `lib.ts` to type check itself
 
     let errors = module
         .create_program(vec![source.to_string_lossy().into()], rt)?
@@ -104,7 +104,7 @@ async fn main() -> Result<()> {
 }
 
 // <details>
-//   <summary>Other setup code</summary>
+//   <summary>Additional setup code</summary>
 
 use std::path::Path;
 

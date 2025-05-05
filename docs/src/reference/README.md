@@ -18,7 +18,7 @@
 
 <!-- prettier-ignore-start -->
 
-[JsRuntime]: https://docs.rs/deno_core/0.338.0/deno_core/struct.JsRuntime.html
+[JsRuntime]:    https://docs.rs/deno_core/0.338.0/deno_core/struct.JsRuntime.html
 [wasm-bindgen]: https://github.com/rustwasm/wasm-bindgen#example
 
 <!-- prettier-ignore-end -->

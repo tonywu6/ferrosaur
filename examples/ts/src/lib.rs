@@ -1,6 +1,6 @@
 // `lib.rs` does the following things:
 //
-// - Embed the `typescript` library and exports it as the `TypeScript` struct.
+// - Embed the `typescript` library and export it as the `TypeScript` struct.
 // - Provide some reusable interface definitions and utility functions.
 //
 // The [`ts-blank-space`](/docs/src/examples/ts-blank-space.md) example reuses
@@ -17,14 +17,14 @@ pub struct TypeScript;
 //   [esbuild] during the build step. The actual source file is [`lib.ts`](#srclibts).
 //   See also [`build.rs`](#buildrs) and [`build.js`](#buildjs).
 //
-// - [`url("npm:typescript")`][module-url] sets the module specifier to `"npm:typescript"`.
+// - `url("npm:typescript")` [sets the module specifier][module-url] to `"npm:typescript"`.
 //
 //   [`lib.ts`](#srclibts) and other modules in the runtime will then be able to do <br>
 //   `import ts from "npm:typescript"`.
 //
-// - [`fast(unsafe_debug)`][module-fast-unsafe] embeds the JS file as a fast V8 string
-//   while skipping compile-time assertion that it is in ASCII. This is because the
-//   `typescript` lib is massive and doing so will take a long time.
+// - `fast(unsafe_debug)` embeds the JS file as a fast V8 string while
+//   [skipping compile-time assertion][module-fast-unsafe] that it is in ASCII. This is
+//   because the `typescript` lib is massive and doing so will take a long time.
 //
 //   `esbuild` already [ensures that its build output is ASCII-only][esbuild-charset],
 //   so it is safe in this case.
@@ -109,7 +109,7 @@ mod dts {
 // </details>
 
 // <details>
-//   <summary>Other setup code</summary>
+//   <summary>Additional setup code</summary>
 
 use anyhow::Result;
 

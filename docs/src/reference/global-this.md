@@ -31,6 +31,8 @@ After this, you can use [`#[js(interface)]`](interface.md) to further derive acc
 [properties](interface/prop.md), [functions](interface/func.md), and more, on
 `globalThis`:
 
+<figure>
+
 ```rust
 # use ferrosaur::js;
 #
@@ -46,6 +48,14 @@ impl Global {
 #
 # Ok::<_, anyhow::Error>(())
 ```
+
+<figcaption>
+
+The [`atob`] function.
+
+</figcaption>
+
+</figure>
 
 ## Derived APIs
 
@@ -73,7 +83,8 @@ Create a handle to the [`globalThis`] object from the given [`JsRuntime`].
 
 <!-- prettier-ignore-start -->
 
+[`atob`]:       https://developer.mozilla.org/en-US/docs/Web/API/Window/atob
 [`globalThis`]: http://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis
-[newtype]: https://doc.rust-lang.org/rust-by-example/generics/new_types.html
+[newtype]:      https://doc.rust-lang.org/rust-by-example/generics/new_types.html
 
 <!-- prettier-ignore-end -->

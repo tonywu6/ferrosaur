@@ -5,3 +5,8 @@
 ```rs,example
 {{#include ../../../examples/calculator/src/main.rs}}
 ```
+
+> [!TIP]
+>
+> This page is generated from the
+> [example source](../../../examples/calculator/src/main.rs).

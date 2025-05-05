@@ -22,4 +22,4 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tap = { workspace = true }
 toml = "0.5"
-url = "2.5.4"
+url = { version = "2.5.4", features = ["serde"] }

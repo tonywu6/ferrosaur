@@ -1,6 +1,6 @@
 # Example: TypeScript
 
-This example [embeds][js-module] the [`typescript`] compiler then runs it to type check
+This example [embeds][js-module] the [`typescript`] compiler, then runs it to type check
 the example itself.
 
 To run this example, run:
@@ -27,7 +27,7 @@ actually does not have access to these types.
 > [!TIP]
 >
 > See also [microsoft/typescript-go](https://github.com/microsoft/typescript-go), which
-> makes this example kinda silly.
+> makes this whole thing kinda silly.
 
 <details class="toc" open>
   <summary>The setup</summary>
@@ -149,14 +149,14 @@ This tricks `typescript` into using Node APIs, which [`deno_runtime`] has suppor
 
 <!-- prettier-ignore-start -->
 
-[`OUT_DIR`]: https://doc.rust-lang.org/cargo/reference/environment-variables.html?highlight=OUT_DIR#environment-variables-cargo-sets-for-crates
-[`deno`]: https://docs.deno.com/runtime/
-[`include!`]: https://doc.rust-lang.org/std/macro.include.html
-[`typescript`]: https://www.npmjs.com/package/typescript
-[CommonJS]: https://nodejs.org/api/modules.html#modules-commonjs-modules
-[build-scripts]: https://doc.rust-lang.org/cargo/reference/build-scripts.html
-[esbuild]: https://esbuild.github.io/
-[js-module]: /docs/src/reference/module.md
+[CommonJS]:       https://nodejs.org/api/modules.html#modules-commonjs-modules
+[`OUT_DIR`]:      https://doc.rust-lang.org/cargo/reference/environment-variables.html?highlight=OUT_DIR#environment-variables-cargo-sets-for-crates
+[`deno`]:         https://docs.deno.com/runtime/
+[`include!`]:     https://doc.rust-lang.org/std/macro.include.html
+[`typescript`]:   https://www.npmjs.com/package/typescript
+[build-scripts]:  https://doc.rust-lang.org/cargo/reference/build-scripts.html
+[esbuild]:        https://esbuild.github.io/
+[js-module]:      /docs/src/reference/module.md
 [typescript-lib]: https://github.com/microsoft/TypeScript/blob/main/src/lib/README.md
 
 <!-- prettier-ignore-end -->

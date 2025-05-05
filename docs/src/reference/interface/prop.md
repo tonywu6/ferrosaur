@@ -154,9 +154,10 @@ impl Foo {
 # let rt = &mut fixture::deno()?;
 // let rt: &mut JsRuntime;
 #
-# let foo: Foo = fixture::eval_value("({ bar: 42 })", rt)?;
+# let foo: Foo = fixture::eval_value("({ bar: 41 })", rt)?;
 // let foo: Foo;
 #
+assert_eq!(foo.bar(rt)?, 41.0);
 foo.set_bar(42.0, rt)?;
 assert_eq!(foo.bar(rt)?, 42.0);
 #
@@ -170,6 +171,7 @@ interface Foo {
   bar: number;
 }
 declare let foo: Foo;
+assert(foo.bar === 41);
 foo.bar = 42;
 assert(foo.bar === 42);
 ```

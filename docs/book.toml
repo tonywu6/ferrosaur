@@ -46,3 +46,13 @@ command = "cargo bin mdbook-alerts"
 after = ["links"]
 before = ["rustdoc-link"]
 command = "deno run --allow-all app/build/preprocessor.ts"
+
+[_metadata.socials."/"]
+image = "https://opengraph.githubassets.com/main/tonywu6/ferrosaur"
+title = "ferrosaur"
+
+[_metadata.socials."/examples/"]
+title = "Examples"
+
+[_metadata.socials."/reference/"]
+title = "Reference"

@@ -466,10 +466,7 @@ pub fn pub_in_super(vis: Visibility) -> Visibility {
     }
 }
 
-#[allow(
-    non_camel_case_types,
-    reason = "this is used like a unit value in quote! {}"
-)]
+#[allow(non_camel_case_types)] // this is used like a unit value in quote! {}
 pub struct use_prelude;
 
 impl ToTokens for use_prelude {
@@ -490,10 +487,7 @@ impl ToTokens for use_prelude {
     }
 }
 
-#[allow(
-    non_camel_case_types,
-    reason = "this is used like a unit value in quote! {}"
-)]
+#[allow(non_camel_case_types)] // this is used like a unit value in quote! {}
 pub struct use_deno;
 
 impl ToTokens for use_deno {

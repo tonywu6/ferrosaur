@@ -113,13 +113,13 @@ not hold.
 pub struct Module;
 ```
 
-Like [`fast`](#option-fast), except for debug builds, at compile time, _unsafely_ embeds
+Like [`fast`](#option-fast), except for debug builds, at compile time, _unsafely_ embed
 JS code as [`FastStaticString`]s [without checking][unchecked] it is in 7-bit ASCII.
 
 For release builds, this behaves the same as `fast`. Under the hood, this uses the
 `#[cfg(debug_assertions)]` condition.
 
-Behavior is undefined if the file is not actually in ASCII.
+The behavior is undefined if the file is not actually in ASCII.
 
 This could be useful if the source file you are trying to embed is very large, in which
 case the compile-time checking could take a very long time.
@@ -160,6 +160,9 @@ pub struct Module;
 `import.meta.url` will be `file://` + [`std::env::current_dir()`] _at runtime_ + a name
 generated from the file's relative path.
 
+This essentially gives `import.meta.url` the same real working directory as the program
+itself.
+
 | Example           |                                          |
 | :---------------- | ---------------------------------------- |
 | JavaScript file   | `<CARGO_MANIFEST_DIR>/src/js/index.js`   |
@@ -180,7 +183,9 @@ The string must be parsable by [`url::Url`]. It is a _runtime_ error if the URL 
 parsable. Notably, this means you cannot use a bare identifier like `"package"` as you
 would with Node.
 
-For example, `url("npm:lodash")` sets `import.meta.url` to `"npm:lodash"`.
+For example, `url("npm:lodash")` sets `import.meta.url` to `"npm:lodash"`. Other modules
+in the same [`JsRuntime`] will then be able to import this module using
+`import ... from "npm:lodash"`.
 
 ## Derived APIs
 
@@ -229,11 +234,11 @@ The embedded JS source code as a constant.
 
 <!-- prettier-ignore-start -->
 
-[`deno_core::ascii_str_include!`]: https://docs.rs/deno_core/0.338.0/deno_core/macro.ascii_str_include.html
-[`include_str!`]: https://doc.rust-lang.org/stable/core/macro.include_str.html
-[cargo-env]: https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates
-[esm]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules
-[import-meta-url]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import.meta#url
-[unchecked]: deno_core::v8::String::create_external_onebyte_const_unchecked
+[`deno_core::ascii_str_include!`]:  https://docs.rs/deno_core/0.338.0/deno_core/macro.ascii_str_include.html
+[`include_str!`]:                   https://doc.rust-lang.org/stable/core/macro.include_str.html
+[cargo-env]:                        https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates
+[esm]:                              https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules
+[import-meta-url]:                  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import.meta#url
+[unchecked]:                        deno_core::v8::String::create_external_onebyte_const_unchecked
 
 <!-- prettier-ignore-end -->

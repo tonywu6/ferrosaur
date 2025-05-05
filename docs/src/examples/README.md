@@ -1,6 +1,6 @@
 # Examples
 
-## [_console_](console.md)
+## [_console.log_](console.md)
 
 Introductory example using `console.log` — start from here!
 
@@ -18,7 +18,8 @@ Workflows integrating NPM dependencies and a bundler.
 
 <figcaption>
 
-Output of the [`ts-blank-space`](ts-blank-space.md) example.
+Output of the [`ts-blank-space`](ts-blank-space.md) example. Pretty-printing courtesy of
+[`bat`](https://crates.io/crates/bat).
 
 </figcaption>
 

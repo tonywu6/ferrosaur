@@ -6,7 +6,7 @@ upon the [`ts` example](/docs/src/examples/ts.md) to run [`ts-blank-space`].
 > [!TIP]
 >
 > "Type-stripping" means [erasing] TypeScript specific syntax and features from the
-> source so that it can be directly executed as JavaScript.
+> source code so that it can be directly executed as JavaScript.
 
 To run this example, run:
 
@@ -36,8 +36,8 @@ Output of this example. Notice the extra whitespace in the function signatures.
 
 <!-- prettier-ignore-start -->
 
-[`deno`]: https://docs.deno.com/runtime/
+[`deno`]:           https://docs.deno.com/runtime/
 [`ts-blank-space`]: https://bloomberg.github.io/ts-blank-space/
-[erasing]: https://www.totaltypescript.com/erasable-syntax-only#what-does-erasable-mean
+[erasing]:          https://www.totaltypescript.com/erasable-syntax-only#what-does-erasable-mean
 
 <!-- prettier-ignore-end -->

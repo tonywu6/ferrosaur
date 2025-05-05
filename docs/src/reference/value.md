@@ -1,6 +1,7 @@
 # `#[js(value)]`
 
-Use `#[js(value)]` to represent an arbitrary JavaScript type.
+Use `#[js(value)]` to represent arbitrary JavaScript values as types in Rust's type
+system.
 
 ```rust
 # use ferrosaur::js;

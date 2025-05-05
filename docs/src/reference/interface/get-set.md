@@ -49,8 +49,10 @@ assert(record[key] === "bar");
 </figure>
 
 Functions decorated with `js(get_index)` must have 2 arguments: `&self` and the key to
-get, as well as a return type: the type of the value. Functions decorated with
-`js(get_index)` must have 3 arguments: `&self`, the key, and the value to set.
+get, as well as a return type: the type of the value.
+
+Functions decorated with `js(set_index)` must have 3 arguments: `&self`, the key, and
+the value to set.
 
 Argument types must implement either [`ToV8`] (the default) or [`Serialize`] (if written
 as `serde<T>`). The return type must implement either [`FromV8`] or

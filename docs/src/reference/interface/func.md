@@ -141,6 +141,8 @@ By default, the JS function will receive the object from which the function is a
 (i.e. `&self`) as its `this` value. Expressed in TypeScript, the way your function is
 invoked is roughly:
 
+<figure>
+
 ```ts
 interface Foo {
   bar: () => void;
@@ -149,6 +151,14 @@ declare const foo: Foo;
 const bar = foo.bar;
 bar.call(foo);
 ```
+
+<figcaption>
+
+See [`Function.prototype.call`][function-prototype-call]
+
+</figcaption>
+
+</figure>
 
 Alternatively, you can explicitly declare the type of `this` using the second argument:
 
@@ -178,9 +188,9 @@ bar.call(undefined);
 
 </figure>
 
-The derived Rust function will not have a `this` argument.
-
 The JS function will receive a `this` value of `undefined` when called.
+
+The resulting Rust function will not have a `this` argument.
 
 ### `this: [SomeType]` <!-- omit from toc -->
 
@@ -201,6 +211,9 @@ struct Baz;
 
 ```ts
 // Expressed in TypeScript:
+interface Foo {
+  bar: (this: Baz) => void;
+}
 const bar = foo.bar;
 declare const baz: Baz;
 bar.call(baz);
@@ -208,7 +221,7 @@ bar.call(baz);
 
 </figure>
 
-The derived Rust function will have an explicit `this` argument, for which you will
+The resulting Rust function will have an explicit `this` argument, for which you will
 supply a value at call time; the argument will be subject to the same
 [type conversion](../typing.md) rules as other arguments.
 
@@ -307,9 +320,10 @@ impl Date {
 
 <!-- prettier-ignore-start -->
 
-[patterns-intro]: https://doc.rust-lang.org/reference/patterns.html#r-patterns.intro
-[range]: https://doc.rust-lang.org/reference/patterns.html#range-patterns
-[well-known-symbols]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#static_properties
-[with_event_loop_promise]: deno_core::JsRuntime::with_event_loop_promise
+[function-prototype-call]:  https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/call
+[patterns-intro]:           https://doc.rust-lang.org/reference/patterns.html#r-patterns.intro
+[range]:                    https://doc.rust-lang.org/reference/patterns.html#range-patterns
+[well-known-symbols]:       https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#static_properties
+[with_event_loop_promise]:  deno_core::JsRuntime::with_event_loop_promise
 
 <!-- prettier-ignore-end -->

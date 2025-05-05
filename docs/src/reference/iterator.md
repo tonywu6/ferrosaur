@@ -68,7 +68,7 @@ Use `js(callable)` on an `impl` block. The `impl` must contain a single item,
 
 #### pub fn next(&mut self, &mut [JsRuntime]) -> [anyhow::Result]\<Option\<T>>
 
-Receive the next value from the iterator. Returns:
+Receive the next value from the iterator:
 
 - `Ok(Some(T))` if the next value is successfully returned;
 - `Ok(None)` if the iterator has been exhausted;
