@@ -23,4 +23,6 @@
   - [js(iterator)](reference/iterator.md)
   - [Specifying types](reference/typing.md)
 
+[CHANGELOG](CHANGELOG.md)
+
 [INTERNAL: Repo README](./_internal/README.md)
