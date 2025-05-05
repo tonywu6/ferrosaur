@@ -44,51 +44,70 @@ function intoNotebook(code: string): string {
 
   const lastParagraph = (): Paragraph | undefined => paragraphs[paragraphs.length - 1];
 
-  for (const line of code.split("\n")) {
+  for (const thisLine of code.split("\n")) {
     const last = lastParagraph();
-    if (/^\s*[/]{2}(?:[^/!]|$)/.test(line)) {
+    if (RE_COMMENT.test(thisLine)) {
       switch (last?.type) {
         case "code": {
-          const text = last.lines[last.lines.length - 1];
-          if (text) {
-            last.lines.push(line);
+          const lastLine = last.lines[last.lines.length - 1];
+          if (lastLine) {
+            last.lines.push(thisLine);
           } else {
-            paragraphs.push({ type: "prose", lines: [line] });
+            paragraphs.push({ type: "prose", lines: [thisLine] });
           }
           break;
         }
         case "prose":
-          last.lines.push(line);
+          last.lines.push(thisLine);
           break;
         default:
-          paragraphs.push({ type: "prose", lines: [line] });
+          paragraphs.push({ type: "prose", lines: [thisLine] });
           break;
       }
     } else {
       switch (last?.type) {
         case "code":
-          last.lines.push(line);
+          last.lines.push(thisLine);
           break;
         case "prose":
-          paragraphs.push({ type: "code", lines: [line] });
+          if (thisLine) {
+            const lastLine = last.lines[last.lines.length - 1];
+            if (lastLine) {
+              paragraphs.pop();
+              let code = [...last.lines, thisLine];
+              let para: Paragraph | undefined;
+              while ((para = lastParagraph())) {
+                if (para.type === "code") {
+                  paragraphs.pop();
+                  code = [...para.lines, ...code];
+                } else {
+                  break;
+                }
+              }
+              paragraphs.push({ type: "code", lines: code });
+            } else {
+              paragraphs.push({ type: "code", lines: [thisLine] });
+            }
+          } else {
+            paragraphs.push({ type: "code", lines: [thisLine] });
+          }
+          break;
+        default:
+          paragraphs.push({ type: "code", lines: [thisLine] });
           break;
       }
     }
   }
-
-  const dedent = (lines: string[]): string[] => {
-    const indent = Math.min(
-      ...lines.filter(Boolean).map((line) => /^[ /!]*/.exec(line)?.[0].length ?? 0),
-    );
-    return lines.map((line) => line.slice(indent));
-  };
 
   let output = "";
 
   for (const para of paragraphs) {
     switch (para.type) {
       case "code": {
-        const inner = para.lines.join("\n").trim();
+        const inner = para.lines
+          .join("\n")
+          .replace(/^\s*\n/, "")
+          .trimEnd();
         if (inner) {
           output += "```rs\n";
           output += inner;
@@ -99,6 +118,7 @@ function intoNotebook(code: string): string {
       case "prose": {
         output += dedent(para.lines).join("\n");
         output += "\n\n";
+        break;
       }
     }
   }
@@ -107,3 +127,12 @@ function intoNotebook(code: string): string {
 }
 
 type Paragraph = { type: "prose"; lines: string[] } | { type: "code"; lines: string[] };
+
+const RE_COMMENT = /^\s*[/]{2}(?:[^/!]|$)/;
+
+const dedent = (lines: string[]): string[] => {
+  const indent = Math.min(
+    ...lines.filter(Boolean).map((line) => /^[ /!]*/.exec(line)?.[0].length ?? 0),
+  );
+  return lines.map((line) => line.slice(indent));
+};

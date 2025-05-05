@@ -52,20 +52,11 @@ Functions decorated with `js(get_index)` must have 2 arguments: `&self` and the 
 get, as well as a return type: the type of the value. Functions decorated with
 `js(get_index)` must have 3 arguments: `&self`, the key, and the value to set.
 
-Argument types must implement either [`ToV8`][ToV8] (the default) or
-[`Serialize`][Serialize] (if written as `serde<T>`). The return type must implement
-either [`FromV8`][FromV8] or [`DeserializeOwned`][DeserializeOwned].
+Argument types must implement either [`ToV8`] (the default) or [`Serialize`] (if written
+as `serde<T>`). The return type must implement either [`FromV8`] or
+[`DeserializeOwned`].
 
 > [!NOTE]
 >
 > See [Specifying types](../typing.md) for more info on how you can specify types when
 > using this crate.
-
-<!-- prettier-ignore-start -->
-
-[DeserializeOwned]: deno_core::serde::de::DeserializeOwned
-[FromV8]: deno_core::FromV8
-[Serialize]: deno_core::serde::ser::Serialize
-[ToV8]: deno_core::ToV8
-
-<!-- prettier-ignore-end -->

@@ -11,7 +11,7 @@ similar.opt-level = 3
 
 [workspace]
 default-members = ["crates/*"]
-members = ["crates/*", "examples/*", "utils/cargo-bin"]
+members = ["crates/*", "examples/*", "utils/*", "docs"]
 resolver = "2"
 
 [workspace.dependencies]

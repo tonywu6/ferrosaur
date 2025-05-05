@@ -7,39 +7,38 @@ specific conversion traits.
 <details class="toc" open>
   <summary>Sections</summary>
 
-- [`ToV8` and `FromV8`](#tov8-and-fromv8)
-- [`Serialize` and `DeserializeOwned`](#serialize-and-deserializeowned)
+- [\[`ToV8`\] and \[`FromV8`\]](#tov8-and-fromv8)
+- [\[`Serialize`\] and \[`DeserializeOwned`\]](#serialize-and-deserializeowned)
 
 </details>
 
-## [`ToV8`][ToV8] and [`FromV8`][FromV8]
+## [`ToV8`] and [`FromV8`]
 
-[`ToV8`][ToV8] and [`FromV8`][FromV8] are [`deno_core`]'s builtin conversion traits.
+[`ToV8`] and [`FromV8`] are [`deno_core`]'s builtin conversion traits.
 
 **By default:**
 
-- Function arguments must implement [`ToV8`][ToV8];
+- Function arguments must implement [`ToV8`];
 
   - In the case of [variadic functions](interface/func.md#spread-arguments), the
-    argument must implement [`Iterator<Item = T>`], and `T` must implement
-    [`ToV8`][ToV8];
+    argument must implement [`Iterator<Item = T>`], and `T` must implement [`ToV8`];
 
 - Function return types, property accessor return types, and iterator item types must
-  implement [`FromV8`][FromV8].
+  implement [`FromV8`].
 
 In addition to existing implementors,
 
 - Types derived with [`js(value)`](value.md), [`js(module)`](module.md), and
-  [`js(global_this)`](global-this.md) implement [`ToV8`][ToV8]. This means you can pass
-  such values to JS functions as arguments.
+  [`js(global_this)`](global-this.md) implement [`ToV8`]. This means you can pass such
+  values to JS functions as arguments.
 
-- Types derived with [`js(value)`](value.md) implement [`FromV8`][FromV8]. This means
-  you can return such values from JS functions.
+- Types derived with [`js(value)`](value.md) implement [`FromV8`]. This means you can
+  return such values from JS functions.
 
-## [`Serialize`][Serialize] and [`DeserializeOwned`][DeserializeOwned]
+## [`Serialize`] and [`DeserializeOwned`]
 
-Alternatively, you can opt in to data conversion using [`serde_v8`][serde_v8]. To do so,
-wrap the type in `serde<...>`:
+Alternatively, you can opt in to data conversion using [`serde_v8`]. To do so, wrap the
+type in `serde<...>`:
 
 ```rust
 # use ferrosaur::js;
@@ -62,21 +61,11 @@ impl Foo {
 
 In this case:
 
-- Function arguments must implement [`serde::Serialize`][Serialize];
+- Function arguments must implement [`Serialize`];
 
   - In the case of [variadic functions](interface/func.md#spread-arguments), the
     argument must implement [`Iterator<Item = T>`], and `T` must implement
-    [`serde::Serialize`][Serialize];
+    [`Serialize`];
 
 - Function return types, property accessor return types, and iterator item types must
-  implement [`serde::de::DeserializeOwned`][DeserializeOwned].
-
-<!-- prettier-ignore-start -->
-
-[DeserializeOwned]: deno_core::serde::de::DeserializeOwned
-[FromV8]: deno_core::FromV8
-[Serialize]: deno_core::serde::ser::Serialize
-[ToV8]: deno_core::ToV8
-[serde_v8]: deno_core::serde_v8
-
-<!-- prettier-ignore-end -->
+  implement [`DeserializeOwned`].

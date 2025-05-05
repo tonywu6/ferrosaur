@@ -8,7 +8,7 @@ title = "ferrosaur"
 [build]
 build-dir = "dist"
 create-missing = false
-extra-watch-dirs = ["app"]
+extra-watch-dirs = ["app", "../examples", "../crates"]
 
 [rust]
 edition = "2021"
@@ -30,7 +30,7 @@ runnable = false
 after = ["links"]
 cache-dir = "build"
 command = "cargo bin mdbook-rustdoc-link"
-manifest-dir = "../crates/ferrosaur"
+manifest-dir = "."
 
 [preprocessor.link-forever]
 after = ["rustdoc-link"]
@@ -44,4 +44,5 @@ command = "cargo bin mdbook-alerts"
 
 [preprocessor.app]
 after = ["links"]
+before = ["rustdoc-link"]
 command = "deno run --allow-all app/build/preprocessor.ts"

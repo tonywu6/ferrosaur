@@ -47,8 +47,8 @@ assert(v === "bar");
 </figure>
 
 Use `js(callable)` on an `impl` block. The `impl` must contain a single item,
-`type Item = T`, where `T` must implement either [`FromV8`][FromV8] (the default) or
-[`DeserializeOwned`][DeserializeOwned] (if written as `serde<T>`).
+`type Item = T`, where `T` must implement either [`FromV8`] (the default) or
+[`DeserializeOwned`] (if written as `serde<T>`).
 
 > [!NOTE]
 >
@@ -60,7 +60,7 @@ Use `js(callable)` on an `impl` block. The `impl` must contain a single item,
 > [!NOTE]
 >
 > Note that `js(iterator)` types do _not_ implement the [`Iterator`] trait: both of the
-> below provided APIs require passing in a [`JsRuntime`][JsRuntime] at call time.
+> below provided APIs require passing in a [`JsRuntime`] at call time.
 
 ### Methods
 
@@ -93,9 +93,9 @@ This enables you to use all the capabilities of a Rust iterator, such as
 
 > [!NOTE]
 >
-> Due to lifetime restrictions, the returned iterator mutably borrows the
-> [`JsRuntime`][JsRuntime] for the entire duration of the iteration. This will prevent
-> you from using it on the produced items until the iterator is dropped.
+> Due to lifetime restrictions, the returned iterator mutably borrows the [`JsRuntime`]
+> for the entire duration of the iteration. This will prevent you from using it on the
+> produced items until the iterator is dropped.
 >
 > To be able to use the runtime during iteration, manually call
 > [`next(&mut JsRuntime)`](#pub-fn-nextmut-self-mut-jsruntime---anyhowresultoptiont).
@@ -104,9 +104,6 @@ This enables you to use all the capabilities of a Rust iterator, such as
 
 <!-- prettier-ignore-start -->
 
-[DeserializeOwned]: deno_core::serde::de::DeserializeOwned
-[FromV8]: deno_core::FromV8
-[JsRuntime]: deno_core::JsRuntime
 [js-iterator]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#the_iterator_protocol
 
 <!-- prettier-ignore-end -->

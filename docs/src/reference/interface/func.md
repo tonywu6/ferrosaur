@@ -52,9 +52,9 @@ The generated function has the signature:
 
 </div>
 
-Argument types must implement either [`ToV8`][ToV8] (the default) or
-[`Serialize`][Serialize] (if written as `serde<T>`). The return type must implement
-either [`FromV8`][FromV8] or [`DeserializeOwned`][DeserializeOwned].
+Argument types must implement either [`ToV8`] (the default) or [`Serialize`] (if written
+as `serde<T>`). The return type must implement either [`FromV8`] or
+[`DeserializeOwned`].
 
 > [!NOTE]
 >
@@ -129,11 +129,11 @@ assert((await Promise.resolve(42)) === 42);
 
 </figure>
 
-The generated function will be an `async fn`. The returned [`Future`][Future] will be
-ready once the underlying JS value fulfills.
+The generated function will be an `async fn`. The returned [`Future`] will be ready once
+the underlying JS value fulfills.
 
-Internally, this calls [`JsRuntime::with_event_loop_promise`][with_event_loop_promise],
-which means you don't need to drive the event loop separately.
+Internally, this calls [`JsRuntime::with_event_loop_promise`], which means you don't
+need to drive the event loop separately.
 
 ## `this` argument
 
@@ -257,9 +257,8 @@ console.log(...["🦀", "🦕"]);
 </figure>
 
 On the Rust side, a spread argument of type `A` must implement [`Iterator<Item = T>`],
-where `T` must implement either [`ToV8`][ToV8] (the default) or [`Serialize`][Serialize]
-(if written as `serde<T>`). When calling the function, pass the argument using normal
-syntax.
+where `T` must implement either [`ToV8`] (the default) or [`Serialize`] (if written as
+`serde<T>`). When calling the function, pass the argument using normal syntax.
 
 > [!NOTE]
 >
@@ -308,12 +307,6 @@ impl Date {
 
 <!-- prettier-ignore-start -->
 
-[DeserializeOwned]: deno_core::serde::de::DeserializeOwned
-[FromV8]: deno_core::FromV8
-[Future]: std::future::Future
-[JsRuntime]: deno_core::JsRuntime
-[Serialize]: deno_core::serde::ser::Serialize
-[ToV8]: deno_core::ToV8
 [patterns-intro]: https://doc.rust-lang.org/reference/patterns.html#r-patterns.intro
 [range]: https://doc.rust-lang.org/reference/patterns.html#range-patterns
 [well-known-symbols]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#static_properties

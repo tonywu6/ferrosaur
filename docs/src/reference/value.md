@@ -53,16 +53,15 @@ struct Response;
 // struct Response(v8::Global<v8::Promise>);
 ```
 
-It should make sense for the data type `T` to be placed in a [`v8::Global`][v8::Global].
-In particular, this means [`v8::Local<v8::Value>`][v8::Local] implements
-`TryInto<v8::Local<T>>`.
+It should make sense for the data type `T` to be placed in a [`v8::Global`]. In
+particular, this means [`v8::Local<v8::Value>`] implements `TryInto<v8::Local<T>>`.
 
 This could be useful if you want to have simple runtime type checking for your types.
 For example, given the `Response` type above, if a JS function is supposed to return a
 `Response`, i.e. a `Promise`, but it returns `undefined`, then the corresponding Rust
 function returns `Err(...)` instead of `Ok(Response)`.
 
-Note that this is "type checking" only in so far as [`v8`][v8] can try-convert between
+Note that this is "type checking" only in so far as [`v8`] can try-convert between
 different V8 types; this is not TypeScript-style structural typing.
 
 > [!NOTE]
@@ -75,9 +74,8 @@ different V8 types; this is not TypeScript-style structural typing.
 In the signatures below,
 
 - `Type` is the type that you apply `js(value)` to;
-- `<T>` is the one of the `v8::*` data types. By default, this is
-  [`v8::Value`][v8::Value], but you can control it using the
-  [`of_type`](#option-of_typet) option.
+- `<T>` is the one of the `v8::*` data types. By default, this is [`v8::Value`], but you
+  can control it using the [`of_type`](#option-of_typet) option.
 
 ### Trait implementations
 
@@ -100,12 +98,5 @@ In the signatures below,
 <!-- prettier-ignore-start -->
 
 [newtypes]: https://doc.rust-lang.org/book/ch20-03-advanced-types.html#using-the-newtype-pattern-for-type-safety-and-abstraction
-[v8::Local]: deno_core::v8::Local
-[v8]: deno_core::v8
-[FromV8]: deno_core::FromV8
-[ToV8]: deno_core::ToV8
-[v8::Global]: deno_core::v8::Global
-[v8::Object]: deno_core::v8::Object
-[v8::Value]: deno_core::v8::Value
 
 <!-- prettier-ignore-end -->

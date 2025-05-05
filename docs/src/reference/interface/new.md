@@ -144,9 +144,3 @@ impl Window {
 # #[js(value)]
 # struct XmlHttpRequest;
 ```
-
-<!-- prettier-ignore-start -->
-
-[JsRuntime]: deno_core::JsRuntime
-
-<!-- prettier-ignore-end -->

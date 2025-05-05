@@ -1,0 +1,25 @@
+[package]
+name = "util-mdbook-socials"
+version = "0.1.0"
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { version = "4.5.31", features = ["derive"] }
+glob = "0.3.2"
+image = { version = "0.25.6", features = [
+  "png",
+  "webp",
+], default-features = false }
+lol_html = "2.2.0"
+minijinja = "2.9.0"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tap = { workspace = true }
+toml = "0.5"
+url = "2.5.4"

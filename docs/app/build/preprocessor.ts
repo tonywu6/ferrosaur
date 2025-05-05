@@ -10,10 +10,8 @@ const [, book] = await read(Deno.stdin.readable)
   // <br>
   .then((data): [unknown, Book] => JSON.parse(data));
 
-for (const section of book.sections) {
-  if ("Chapter" in section) {
-    section.Chapter.content = examplePage(section.Chapter.content);
-  }
+for (const chapter of iterChapters(book.sections)) {
+  chapter.content = examplePage(chapter.content);
 }
 
 console.log(JSON.stringify(book));
@@ -30,6 +28,19 @@ async function read(r: ReadableStream): Promise<string> {
   return result;
 }
 
+function* iterChapters(sections: Item[]): Generator<Chapter> {
+  for (const section of sections) {
+    if ("Chapter" in section) {
+      yield section.Chapter;
+      yield* iterChapters(section.Chapter.sub_items);
+    }
+  }
+}
+
 type Book = {
-  sections: ({ PartTitle: string } | { Chapter: { content: string } })[];
+  sections: Item[];
 };
+
+type Item = { PartTitle: string } | { Chapter: { content: string; sub_items: Item[] } };
+
+type Chapter = { content: string; sub_items: Item[] };

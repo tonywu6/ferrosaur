@@ -7,6 +7,10 @@ Use `#[js(interface)]` to declare:
 - [constructors](interface/new.md)
 - [indexing getters and setters](interface/get-set.md)
 
+You can use `js(interface)` on any type derived using this crate, such as a
+[`js(value)`](value.md) or a [`js(module)`](module.md). You can even use it on traits,
+see [the `ts` example](../examples/ts.md#declaring-interfaces-for-libts).
+
 ```rust
 # use ferrosaur::js;
 // First, declare a type:

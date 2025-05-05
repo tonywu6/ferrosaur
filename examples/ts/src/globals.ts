@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 
 const url = new URL("file:///globals.js");
 
-const require = createRequire(url);
+const require = createRequire(url.href);
 const __filename = url.pathname;
 const __dirname = new URL(".", url).pathname;
 

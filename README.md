@@ -1,16 +1,18 @@
 # ferrosaur
 
-<em/>So you use</em> deno_core, <em>and you want to call JavaScript from Rust.</em>
+[![crates.io](https://img.shields.io/crates/v/ferrosaur?style=flat-square)](https://crates.io/crates/ferrosaur)
+[![documentation](https://img.shields.io/github/actions/workflow/status/tonywu6/ferrosaur/docs.yml?event=release&style=flat-square&label=docs)](https://tonywu6.github.io/ferrosaur/)
+[![MIT/Apache-2.0 licensed](https://img.shields.io/crates/l/ferrosaur?style=flat-square)](https://github.com/tonywu6/ferrosaur/tree/main/LICENSE-APACHE.md)
+
+<em/>So you use</em> [`deno_core`], <em>and you want to call JavaScript from Rust.</em>
 
 ```javascript
-// You have:
-// lib.js
 export const add = (a, b) => a + b;
 ```
 
 ```rust
-// You write:
-// lib.rs
+use ferrosaur::js;
+
 #[js(module("lib.js"))]
 struct Module;
 
@@ -21,36 +23,17 @@ impl Module {
 }
 ```
 
-```rust
-// You get:
-// let rt: &mut JsRuntime;
-let module = Module::main_module_init(rt).await?;
-let result = module.add(66.0, 3.0)?;
-```
+_ferrosaur_ derives types and implementations—à la [wasm-bindgen]—that you can use with
+your favorite [`JsRuntime`].
 
-_ferrosaur_ derives structs and functions (à la [wasm-bindgen]) that you can use with
-your favorite [`JsRuntime`][JsRuntime].
+## [Read the book](https://tonywu6.github.io/ferrosaur/)
 
-## Examples
-
-- [_console_][example-console] — intro using console.log, start here!
-- [_calculator_][example-calculator] — embedding ES modules for a portable program.
-- [_ts_][example-ts], [_ts-blank-space_][example-ts-blank-space] — workflows integrating
-  NPM dependencies and a bundler.
-
-You can run examples with `cargo run --package example-<name>`.
-
-## Reference
-
-[Read the book!](https://tonywu6.github.io/ferrosaur)
+You may be looking for:
 
 <!-- prettier-ignore-start -->
 
-[JsRuntime]: https://docs.rs/deno_core/0.338.0/deno_core/struct.JsRuntime.html
+[`deno_core`]: https://docs.rs/deno_core
+[`JsRuntime`]: https://docs.rs/deno_core/latest/deno_core/struct.JsRuntime.html
 [wasm-bindgen]: https://github.com/rustwasm/wasm-bindgen#example
-[example-console]: ./examples/console/src/main.rs
-[example-calculator]: ./examples/calculator
-[example-ts]: ./examples/ts
-[example-ts-blank-space]: ./examples/ts-blank-space
 
 <!-- prettier-ignore-end -->

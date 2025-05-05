@@ -1,7 +1,7 @@
 // This example shows the gist of _ferrosaur_:
 //
-// - You can generate Rust types to represent JavaScript types.
-// - You can generate Rust implementations to describe JavaScript interfaces.
+// - You can derive Rust types to represent JavaScript types.
+// - You can derive Rust implementations to represent JavaScript interfaces.
 // - You can compose these types and implementations to express JavaScript APIs of
 //   arbitrary shapes and complexities.
 //
@@ -15,13 +15,17 @@
 
 use ferrosaur::js;
 
-// Use [`#[js(global_this)]`][js-global_this] to derive a newtype struct that will hold a reference to [`globalThis`]:
+// ## Declare
+
+// Use [`#[js(global_this)]`][js-global_this] to derive a [newtype] struct that will
+// hold a reference to [`globalThis`]:
 
 #[js(global_this)]
 struct Global;
 // (this doesn't need to be named "Global")
 
-// Use [`#[js(value)]`][js-value] to derive a newtype struct that will hold an arbitrary JavaScript value:
+// Use [`#[js(value)]`][js-value] to derive a newtype struct that will hold an
+// arbitrary JavaScript value:
 
 /// the `Deno` namespace
 #[js(value)]
@@ -39,9 +43,19 @@ impl Deno {
     // access the `Deno.pid` property
 }
 
+// If we were writing [TypeScript], that would be:
+
+// ```ts
+// interface Deno {
+//   readonly pid: number;
+// }
+// ```
+
 // Thanks to [`serde_v8`], Rust types that implement [`Serialize`]/[`DeserializeOwned`]
 // can be passed to/from JavaScript. To indicate that a type `T` should be converted
 // using [`serde_v8`], write it as `serde<T>`, like the `serde<u32>` above.
+
+// ---
 
 // Use [`#[js(func)]`][js-func] to derive a Rust function that will call a corresponding
 // JavaScript function:
@@ -53,13 +67,13 @@ impl Global {
     fn btoa(&self, to_encode: serde<&str>) -> serde<String> {}
 }
 
-// What if we want more than just the data? What if we would like to keep
+// But what if we want more than just the data? What if we would like to keep
 // JavaScript objects and values around so that we can use them later? Here comes
 // the fun part:
 
 // Thanks to the [`FromV8`]/[`ToV8`] traits, any Rust type derived using this crate
 // can also be passed from/to JavaScript (as can any type that implements those traits).
-// This is the default conversion mechanism if you don't specify `serde<T>`.
+// This is the default conversion mechanism if you don't specify types as `serde<T>`.
 
 // Combining these attributes lets you statically declare JavaScript APIs of
 // arbitrary shapes. For example, here's how you declare the existence of `console.log`:
@@ -82,7 +96,21 @@ impl Console {
     // note that we are only allowing a single `&str` message for now
 }
 
-// Enough declaring! Let's finally call JavaScript:
+// ```ts
+// // or in TypeScript:
+// declare global {
+//   namespace globalThis {
+//     var console: Console;
+//   }
+// }
+// interface Console {
+//   log(message: string): void;
+// }
+// ```
+
+// ## Execute
+
+// Enough declaring! Let's finally run everything:
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -98,15 +126,18 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-// This is equivalent to the following JavaScript code:
+// This will run the following equivalent JavaScript:
 
 // ```js
-// globalThis.console.log(globalThis.btoa(`{"alg":"HS256"}`));
+// let console = globalThis.console;
+// let encoded = globalThis.btoa('{"alg":"HS256"}');
+// console.log(encoded);
 // ```
 
 // ---
 //
-// (Below are some setup code for this example.)
+// <details>
+//   <summary>Other setup code for this example</summary>
 
 use anyhow::Result;
 use example_runtime::{
@@ -121,13 +152,13 @@ fn js_runtime() -> Result<JsRuntime> {
     Ok(deno(main_module_url)?.js_runtime)
 }
 
-// [`DeserializeOwned`]:    deno_core::serde::de::DeserializeOwned
-// [`FromV8`]:              deno_core::FromV8
-// [`Serialize`]:           deno_core::serde::Serialize
-// [`ToV8`]:                deno_core::ToV8
+// </details>
+
+// [TypeScript]:            https://www.typescriptlang.org/
 // [`globalThis`]:          http://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis
-// [`serde_v8`]:            deno_core::serde_v8
-// [js-func]:               https://tonywu6.github.io/ferrosaur/reference/interface/func
-// [js-global_this]:        https://tonywu6.github.io/ferrosaur/reference/global-this
-// [js-prop]:               https://tonywu6.github.io/ferrosaur/reference/interface/prop
-// [js-value]:              https://tonywu6.github.io/ferrosaur/reference/value
+// [ferrosaur]:             /docs/src/index.md
+// [js-func]:               /docs/src/reference/interface/func.md
+// [js-global_this]:        /docs/src/reference/global-this.md
+// [js-prop]:               /docs/src/reference/interface/prop.md
+// [js-value]:              /docs/src/reference/value.md
+// [newtype]:               https://doc.rust-lang.org/rust-by-example/generics/new_types.html

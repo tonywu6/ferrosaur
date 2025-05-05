@@ -53,8 +53,7 @@ The generated function has the signature:
 </div>
 
 The return type indicates the expected type of the property, which must implement either
-[`FromV8`][FromV8] (the default) or [`DeserializeOwned`][DeserializeOwned] (if written
-as `serde<...>`).
+[`FromV8`] (the default) or [`DeserializeOwned`] (if written as `serde<...>`).
 
 > [!NOTE]
 >
@@ -189,10 +188,6 @@ where `value` has the same type as the getter's declared return type.
 
 <!-- prettier-ignore-start -->
 
-[DeserializeOwned]: deno_core::serde::de::DeserializeOwned
-[FromV8]: deno_core::FromV8
-[JsRuntime]: deno_core::JsRuntime
-[anyhow::Result]: deno_core::anyhow::Result
 [well-known-symbols]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#static_properties
 
 <!-- prettier-ignore-end -->

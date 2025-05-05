@@ -1,6 +1,6 @@
 # `#[js(global_this)]`
 
-Use `#[js(global_this)]` for access to the JavaScript [`globalThis`][globalThis] object:
+Use `#[js(global_this)]` for access to the JavaScript [`globalThis`] object:
 
 ```rust
 # use ferrosaur::js;
@@ -55,8 +55,7 @@ impl Global {
 
 #### pub fn new(rt: &mut [JsRuntime]) -> Self
 
-Create a handle to the [`globalThis`][globalThis] object from the given
-[`JsRuntime`][JsRuntime].
+Create a handle to the [`globalThis`] object from the given [`JsRuntime`].
 
 </div>
 
@@ -74,11 +73,7 @@ Create a handle to the [`globalThis`][globalThis] object from the given
 
 <!-- prettier-ignore-start -->
 
-[JsRuntime]: deno_core::JsRuntime
-[ToV8]: deno_core::ToV8
-[globalThis]: http://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis
+[`globalThis`]: http://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis
 [newtype]: https://doc.rust-lang.org/rust-by-example/generics/new_types.html
-[v8::Global]: deno_core::v8::Global
-[v8::Object]: deno_core::v8::Object
 
 <!-- prettier-ignore-end -->

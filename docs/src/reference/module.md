@@ -15,8 +15,7 @@ Call the
 [`main_module_init`](#pub-async-fn-main_module_initrt-mut-jsruntime---anyhowresultself)
 or
 [`side_module_init`](#pub-async-fn-side_module_initrt-mut-jsruntime---anyhowresultself)
-method to initialize it as a main module or side module in the given
-[`JsRuntime`][JsRuntime].
+method to initialize it as a main module or side module in the given [`JsRuntime`].
 
 ```rust
 # #[path = "../../../crates/ferrosaur/tests/fixture/mod.rs"]
@@ -37,10 +36,10 @@ let main = MainModule::main_module_init(rt).await?;
 > [!NOTE]
 >
 > For the difference between a main module and a side module, see documentation for the
-> corresponding [`JsRuntime`][JsRuntime] methods:
+> corresponding [`JsRuntime`] methods:
 >
-> - [`load_main_es_module_from_code`][load_main_es_module_from_code]
-> - [`load_side_es_module_from_code`][load_main_es_module_from_code]
+> - [`load_main_es_module_from_code`][JsRuntime::load_main_es_module_from_code]
+> - [`load_side_es_module_from_code`][JsRuntime::load_main_es_module_from_code]
 
 After this, you can use [`#[js(interface)]`](interface.md) to further derive access to
 items exported from your module. For example, if you have:
@@ -115,8 +114,7 @@ pub struct Module;
 ```
 
 Like [`fast`](#option-fast), except for debug builds, at compile time, _unsafely_ embeds
-JS code as [`FastStaticString`][deno_core::FastStaticString]s [without
-checking][unchecked] it is in 7-bit ASCII.
+JS code as [`FastStaticString`]s [without checking][unchecked] it is in 7-bit ASCII.
 
 For release builds, this behaves the same as `fast`. Under the hood, this uses the
 `#[cfg(debug_assertions)]` condition.
@@ -178,9 +176,9 @@ pub struct Module;
 
 Use a custom `import.meta.url`.
 
-The string must be parsable by [`url::Url`][Url]. It is a _runtime_ error if the URL is
-not parsable. Notably, this means you cannot use a bare identifier like `"package"` as
-you would with Node.
+The string must be parsable by [`url::Url`]. It is a _runtime_ error if the URL is not
+parsable. Notably, this means you cannot use a bare identifier like `"package"` as you
+would with Node.
 
 For example, `url("npm:lodash")` sets `import.meta.url` to `"npm:lodash"`.
 
@@ -192,15 +190,15 @@ For example, `url("npm:lodash")` sets `import.meta.url` to `"npm:lodash"`.
 
 #### pub async fn main_module_init(rt: &mut [JsRuntime]) -> [anyhow::Result]\<Self> <!-- omit from toc -->
 
-Initialize the embedded ES module as a [main module][load_main_es_module_from_code] in
-the given [`JsRuntime`][JsRuntime].
+Initialize the embedded ES module as a [main
+module][JsRuntime::load_main_es_module_from_code] in the given [`JsRuntime`].
 
 #### pub async fn side_module_init(rt: &mut [JsRuntime]) -> [anyhow::Result]\<Self> <!-- omit from toc -->
 
-Initialize the embedded ES module as a [side module][load_side_es_module_from_code] in
-the given [`JsRuntime`][JsRuntime].
+Initialize the embedded ES module as a [side
+module][JsRuntime::load_side_es_module_from_code] in the given [`JsRuntime`].
 
-#### pub fn module_url() -> [anyhow::Result]<[ModuleSpecifier][Url]> <!-- omit from toc -->
+#### pub fn module_url() -> [anyhow::Result]<[ModuleSpecifier]> <!-- omit from toc -->
 
 Get the `import.meta.url` within the module (controllable through the
 [`url(...)`](#option-url) option).
@@ -231,19 +229,11 @@ The embedded JS source code as a constant.
 
 <!-- prettier-ignore-start -->
 
-[FastStaticString]: deno_core::FastStaticString
-[JsRuntime]: deno_core::JsRuntime
-[ToV8]: deno_core::ToV8
-[Url]: deno_core::url::Url
 [`deno_core::ascii_str_include!`]: https://docs.rs/deno_core/0.338.0/deno_core/macro.ascii_str_include.html
 [`include_str!`]: https://doc.rust-lang.org/stable/core/macro.include_str.html
 [cargo-env]: https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates
 [esm]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules
 [import-meta-url]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import.meta#url
-[load_main_es_module_from_code]: deno_core::JsRuntime::load_main_es_module_from_code
-[load_side_es_module_from_code]: deno_core::JsRuntime::load_side_es_module_from_code
 [unchecked]: deno_core::v8::String::create_external_onebyte_const_unchecked
-[v8::Global]: deno_core::v8::Global
-[v8::Object]: deno_core::v8::Object
 
 <!-- prettier-ignore-end -->
