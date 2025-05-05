@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: "always"
+  RUST_LOG: "info"
+  RUST_BACKTRACE: "1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+
+    strategy:
+      matrix:
+        toolchain:
+          - stable
+
+      fail-fast: false
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      actions: write # evict cache
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+
+      - uses: cargo-bins/cargo-binstall@b9bf4400702f721d469eec4d280125f650c85638
+
+      - name: Get cache key
+        run: |
+          CARGO_VERSION=$(cargo --version)
+          echo "CACHE_KEY=${{ runner.os }}-${{ runner.arch }}-$CARGO_VERSION-${{hashFiles('**/Cargo.toml')}}-${{hashFiles('**/Cargo.lock')}}-${{github.workflow}}-${{github.job}}" >> "$GITHUB_OUTPUT"
+          {
+            echo "CACHE_KEY_RESTORE<<EOF"
+            echo "${{ runner.os }}-${{ runner.arch }}-$CARGO_VERSION-${{hashFiles('**/Cargo.toml')}}-${{hashFiles('**/Cargo.lock')}}-"
+            echo "${{ runner.os }}-${{ runner.arch }}-$CARGO_VERSION-${{hashFiles('**/Cargo.toml')}}-"
+            echo "${{ runner.os }}-${{ runner.arch }}-$CARGO_VERSION-"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        id: cache-key
+        shell: bash
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            target/
+          key: ${{ steps.cache-key.outputs.CACHE_KEY }}
+          restore-keys: ${{ steps.cache-key.outputs.CACHE_KEY_RESTORE }}
+        id: cache-restore
+
+      - name: Prepare binaries
+        run: |
+          cargo bin --install
+
+      - run: cargo test --all-features --no-fail-fast -- --include-ignored
+
+      - name: Evict cache
+        run: gh cache delete '${{ steps.cache-key.outputs.CACHE_KEY }}'
+        if: ${{ steps.cache-restore.outputs.cache-hit }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            target/
+          key: ${{ steps.cache-key.outputs.CACHE_KEY }}
+
+      - name: Save cache key
+        id: save-cache-key
+        run: |
+          echo "CACHE_KEY=${{ steps.cache-key.outputs.CACHE_KEY }}" >> "$GITHUB_OUTPUT"
+          {
+            echo "CACHE_KEY_RESTORE<<EOF"
+            echo "${{ steps.cache-key.outputs.CACHE_KEY }}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        shell: bash
+
+    outputs:
+      CACHE_KEY: ${{ steps.save-cache-key.outputs.CACHE_KEY }}
+      CACHE_KEY_RESTORE: ${{ steps.save-cache-key.outputs.CACHE_KEY_RESTORE }}
+
+  test-examples:
+    name: Build features
+
+    needs:
+      - test
+
+    strategy:
+      matrix:
+        example:
+          - example-console
+          - example-calculator
+          - example-ts
+          - example-ts-blank-space
+
+      fail-fast: false
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            target/
+          key: ${{ needs.test.outputs.CACHE_KEY }}
+          restore-keys: ${{ needs.test.outputs.CACHE_KEY_RESTORE }}
+
+      - run: cargo run --package ${{ matrix.example }}
