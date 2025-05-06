@@ -40,7 +40,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: cargo-bins/cargo-binstall@b9bf4400702f721d469eec4d280125f650c85638
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
@@ -69,10 +68,6 @@ jobs:
           key: ${{ steps.cache-key.outputs.CACHE_KEY }}
           restore-keys: ${{ steps.cache-key.outputs.CACHE_KEY_RESTORE }}
         id: cache-restore
-
-      - name: Prepare binaries
-        run: |
-          cargo bin --install
 
       - run: cargo test --all-features --no-fail-fast -- --include-ignored
 
@@ -134,6 +129,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
       - uses: actions/cache/restore@v4
         with:
