@@ -1,10 +1,10 @@
 // `lib.rs` does the following things:
 //
-// - Embed NPM dependencies and export them as Rust structs.
+// - Embed JS dependencies and export them as Rust structs.
 // - Provide some reusable interface definitions and utility functions.
 //
 // The [`ts-blank-space`](/docs/src/examples/ts-blank-space.md) example reuses
-// this module because it also requires `typescript`.
+// this module because they also require `typescript`.
 
 // ### Embedding `typescript`
 
@@ -13,8 +13,8 @@ use ferrosaur::js;
 #[js(module("../dist/typescript.js", url("npm:typescript"), fast(unsafe_debug)))]
 pub struct TypeScriptLib;
 
-// - The actual embedded file is `"../dist/typescript.js"`. This file is emitted by
-//   [esbuild] during the build step. The actual source file is under [`src/deps`](#srcdeps).
+// - The embedded file is `"../dist/typescript.js"`. This file is emitted by [esbuild]
+//   during `cargo build`. The actual source file is under [`src/deps`](#srcdeps).
 //
 // - `url("npm:typescript")` [sets the module specifier][module-url] to `"npm:typescript"`.
 //
@@ -25,7 +25,7 @@ pub struct TypeScriptLib;
 //   [skipping compile-time assertion][module-fast-unsafe] that it is in ASCII. This is
 //   because the `typescript` lib is massive and doing so will take a long time.
 //
-//   `esbuild` already [ensures that its build output is ASCII-only][esbuild-charset],
+//   esbuild already [ensures that its build output is ASCII-only][esbuild-charset],
 //   so it is safe in this case.
 
 // ### Embedding `@typescript/vfs`
@@ -80,7 +80,7 @@ impl Compiler for Example {}
 // ### Helpers
 
 // <details>
-//   <summary><code>inject_env_vars</code></summary>
+//   <summary><code>inject_lib_dts</code></summary>
 
 // This function defines a few properties on `globalThis` to be used in the example.
 
@@ -88,7 +88,7 @@ impl Compiler for Example {}
 // declaration files. On the JavaScript side, this is used to create the
 // [virtual file system](#embedding-typescriptvfs).
 
-pub fn inject_env_vars(rt: &mut JsRuntime) -> Result<()> {
+pub fn inject_lib_dts(rt: &mut JsRuntime) -> Result<()> {
     #[js(global_this)]
     struct Global;
 

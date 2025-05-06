@@ -11,7 +11,7 @@ repository.workspace = true
 
 categories = ["development-tools::ffi", "web-programming"]
 description = "Static codegen for deno_core. 🦀📲🦕"
-documentation = "https://tonywu6.github.io/ferrosaur/"
+homepage = "https://tonywu6.github.io/ferrosaur/"
 keywords = ["deno", "v8", "javascript"]
 readme = "README.md"
 

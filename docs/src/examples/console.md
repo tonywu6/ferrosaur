@@ -9,4 +9,4 @@
 > [!TIP]
 >
 > This page is generated from the
-> [example source](../../../examples/console/src/main.rs).
+> [example's source code](../../../examples/console/src/main.rs).

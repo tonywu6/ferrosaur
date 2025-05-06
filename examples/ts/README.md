@@ -1,7 +1,19 @@
 # Example: TypeScript
 
-This example [embeds][js-module] the [`typescript`] compiler, then runs it to type check
-the example itself.
+This example showcases a setup of multiple ES modules that can import from each other,
+as well as integration with JavaScript tooling during `cargo build`.
+
+<div class="hidden">
+
+> [!TIP]
+>
+> For best results, view this page
+> [in the book](https://tonywu6.github.io/ferrosaur/examples/ts).
+
+</div>
+
+It [embeds][js-module] the [`typescript`] compiler in order to type check the example
+source code itself.
 
 To run this example, run:
 
@@ -63,14 +75,9 @@ embedded by [`lib.rs`](#srclibrs).
 
 ## `src/main.rs`
 
-<details>
-  <summary>File <code>src/main.rs</code></summary>
-
-```rs
+```rs,example
 {{#include src/main.rs}}
 ```
-
-</details>
 
 ## `build.ts`
 
@@ -80,6 +87,7 @@ embedded by [`lib.rs`](#srclibrs).
 Compiling is necessary because:
 
 - [`deno_core`] itself does not run TypeScript files.
+
 - The `typescript` lib is distributed in [CommonJS]. esbuild transforms it into ESM so
   that it can be [imported](#srclibrs).
 

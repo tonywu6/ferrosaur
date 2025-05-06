@@ -14,6 +14,8 @@ use ferrosaur::js;
 #[js(module("./main.js", fast))]
 struct Main;
 
+// ---
+
 // [`main.js`](/examples/calculator/src/main.js) exports a `Calculator` class:
 
 #[js(interface)]
@@ -49,6 +51,8 @@ impl Calculator {
     #[js(prop)]
     fn value(&self) -> serde<f64> {}
 }
+
+// ---
 
 // Here's the main function:
 

@@ -15,7 +15,7 @@
 
 use ferrosaur::js;
 
-// ## `globalThis`
+// ## Getting `globalThis`
 
 // Use [`#[js(global_this)]`][js-global_this] to derive a [newtype] struct that will
 // hold a reference to [`globalThis`]:
@@ -35,7 +35,7 @@ struct Deno;
 
 // ## Declaring JavaScript APIs
 
-// Now that you have these "value types," use [`#[js(interface)]`][js-interface] to describe them.
+// Now that you have these "value types," use [`#[js(interface)]`][js-interface] to describe them:
 
 // ### Properties
 

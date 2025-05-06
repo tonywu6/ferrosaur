@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
 
     // ## Initialize `typescript`
 
-    use example_ts::{inject_env_vars, TypeScriptLib, TypeScriptVfs};
+    use example_ts::{inject_lib_dts, TypeScriptLib, TypeScriptVfs};
 
     TypeScriptLib::side_module_init(rt).await?;
 
@@ -33,9 +33,9 @@ async fn main() -> Result<()> {
 
     // `TypeScriptLib` and `TypeScriptVfs` are provided by the [`ts` example](/docs/src/examples/ts.md#srclibrs).
 
-    inject_env_vars(rt)?;
+    inject_lib_dts(rt)?;
 
-    // `inject_env_vars` sets up some data that `typescript` requires in order to run.
+    // `inject_lib_dts` sets up some data that `typescript` requires in order to run.
     // See [`build.rs` in the `ts` example](/docs/src/examples/ts.md#buildrs) for more info.
 
     // ## Initialize `ts-blank-space`

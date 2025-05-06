@@ -1,4 +1,4 @@
-//! **Usage documentation** at <https://tonywu6.github.io/ferrosaur/>.
+#![doc = concat!("**Usage documentation** at <", env!("CARGO_PKG_HOMEPAGE"), ">.")]
 
 use darling::{
     ast::NestedMeta,
@@ -27,7 +27,63 @@ use crate::util::{
     FatalErrors, TokenStreamResult,
 };
 
-/// Macro for deriving `struct`s and `impl`s for use with `deno_core`.
+#[doc = concat!("**Usage documentation** at <", env!("CARGO_PKG_HOMEPAGE"), ">.")]
+///
+/// Valid usage:
+///
+/// ```
+/// # use ferrosaur::js;
+/// #
+/// #[js(global_this)]
+/// struct Global;
+///
+/// #[js(module("../examples/js/mod.js"))]
+/// struct Module;
+///
+/// #[js(value)]
+/// struct Foo;
+///
+/// #[js(interface)]
+/// impl Foo {
+///     #[js(prop(with_setter))]
+///     fn foo(&self) -> T {}
+///
+///     #[js(func)]
+///     fn bar(&self, foo: T) -> U {}
+///
+///     #[js(func)]
+///     fn baz(&self, num: serde<u32>) -> serde<u32> {}
+///
+///     #[js(func)]
+///     async fn fetch(&self, url: String) -> serde<Vec<u8>> {}
+///
+///     #[js(new)]
+///     fn cls(&self) -> JsClass {}
+///
+///     #[js(get_index)]
+///     fn get(&self, k: String) -> T {}
+///
+///     #[js(set_index)]
+///     fn set(&self, k: String, v: T) {}
+/// }
+///
+/// #[js(callable)]
+/// impl Foo {
+///     fn call(&self, bar: T) -> U {}
+/// }
+///
+/// #[js(iterator)]
+/// impl Foo {
+///     type Item = T;
+/// }
+///
+/// # #[js(value)]
+/// # struct T;
+/// # #[js(value)]
+/// # struct U;
+/// # #[js(value)]
+/// # struct JsClass;
+/// ```
 #[proc_macro_attribute]
 pub fn js(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     js_item(attr.into(), item.into()).or_error().into()

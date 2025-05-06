@@ -1,5 +1,14 @@
 # Example: [`ts-blank-space`]
 
+<div class="hidden">
+
+> [!TIP]
+>
+> For best results, view this page
+> [in the book](https://tonywu6.github.io/ferrosaur/examples/ts-blank-space).
+
+</div>
+
 [`ts-blank-space`] is a cool _type-stripping_ TypeScript compiler. This example builds
 upon the [`ts` example](/docs/src/examples/ts.md) to run [`ts-blank-space`].
 

@@ -14,7 +14,7 @@ Workflows integrating NPM dependencies and a bundler.
 
 <figure>
 
-![screenshot of the ts-blank-space example](/docs/src/examples/media/ts-blank-space.webp)
+[![screenshot of the ts-blank-space example](media/ts-blank-space.webp)](ts-blank-space.md)
 
 <figcaption>
 

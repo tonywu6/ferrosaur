@@ -68,7 +68,7 @@ pub fn impl_getter(_: Getter, sig: Signature) -> Result<Vec<TokenStream>> {
                 let scope = &mut rt.handle_scope();
                 let this = ToV8::to_v8(self, scope)?;
                 let this = v8::Local::new(scope, this);
-                let prop = #from_key?;
+                let prop: v8::Local<v8::Value> = #from_key?;
                 getter(scope, this, prop)
                     .context("failed to index into object")
             }
@@ -137,7 +137,7 @@ pub fn impl_setter(_: Setter, sig: Signature) -> Result<Vec<TokenStream>> {
                 let scope = &mut _rt.handle_scope();
                 let this = ToV8::to_v8(self, scope)?;
                 let this = v8::Local::new(scope, this);
-                let prop = #from_key?;
+                let prop: v8::Local<v8::Value> = #from_key?;
                 setter(scope, this, prop, #val_name)
                     .context("failed to set property")?;
                 Ok(self)

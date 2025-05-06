@@ -22,6 +22,7 @@
   - [js(callable)](reference/callable.md)
   - [js(iterator)](reference/iterator.md)
   - [Specifying types](reference/typing.md)
+  - [Common pitfalls](reference/common-pitfalls.md)
 
 [CHANGELOG](CHANGELOG.md)
 
