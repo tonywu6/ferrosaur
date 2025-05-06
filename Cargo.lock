@@ -923,11 +923,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "darling",
- "deno_console",
  "deno_core",
- "deno_url",
- "deno_web",
- "deno_webidl",
  "example-runtime",
  "heck",
  "insta",

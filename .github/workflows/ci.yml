@@ -40,11 +40,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: cargo-bins/cargo-binstall@b9bf4400702f721d469eec4d280125f650c85638
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
-
-      - uses: cargo-bins/cargo-binstall@b9bf4400702f721d469eec4d280125f650c85638
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
       - name: Get cache key
         run: |
@@ -87,6 +89,7 @@ jobs:
         if: always()
         with:
           path: |
+            .bin/
             target/
           key: ${{ steps.cache-key.outputs.CACHE_KEY }}
 

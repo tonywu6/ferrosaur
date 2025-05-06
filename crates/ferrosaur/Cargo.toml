@@ -28,11 +28,7 @@ tap = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
-deno_console = { workspace = true }
 deno_core = { workspace = true }
-deno_url = { workspace = true }
-deno_web = { workspace = true }
-deno_webidl = { workspace = true }
 example-runtime = { path = "../../examples/_runtime" }
 insta = { workspace = true }
 serde = { workspace = true }
