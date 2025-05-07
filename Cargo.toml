@@ -38,7 +38,7 @@ tokio = { version = "1", features = ["macros"] }
 [workspace.metadata.bin]
 mdbook = { version = "0.4.48" }
 mdbook-alerts = { version = "0.7.0" }
-mdbookkit = { version = "1.1.1", bins = [
+mdbookkit = { version = "1.1.2", bins = [
   "mdbook-rustdoc-link",
   "mdbook-link-forever",
 ], features = [

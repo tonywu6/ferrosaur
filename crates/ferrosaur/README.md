@@ -42,7 +42,7 @@ let result = module.add(66.0, 3.0)?;
 
 > [!TIP]
 >
-> In a sense, this is like the inverse of [`deno_core::op2`]!
+> This is like the inverse of [`deno_core::op2`]:
 >
 > - `#[op2]` gives JavaScript programs easy access to your Rust implementation.
 > - _ferrosaur_ gives your Rust program easy access to JavaScript implementations.

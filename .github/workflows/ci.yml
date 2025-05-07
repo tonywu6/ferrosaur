@@ -22,13 +22,6 @@ jobs:
   test:
     name: Test
 
-    strategy:
-      matrix:
-        toolchain:
-          - stable
-
-      fail-fast: false
-
     runs-on: ubuntu-latest
 
     permissions:
@@ -42,7 +35,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.toolchain }}
+          toolchain: stable
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -84,7 +77,6 @@ jobs:
         if: always()
         with:
           path: |
-            .bin/
             target/
           key: ${{ steps.cache-key.outputs.CACHE_KEY }}
 
