@@ -22,11 +22,13 @@ jobs:
   test:
     name: Test
 
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || !startsWith(github.head_ref, 'release-plz-')
 
     permissions:
       contents: read
       actions: write # evict cache
+
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
