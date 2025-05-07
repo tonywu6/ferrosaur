@@ -1,4 +1,4 @@
-#![doc = include_str!("../../../../docs/src/reference/typing.md")]
+#![cfg_attr(doctest, doc = include_str!("../../../../docs/src/reference/typing.md"))]
 
 use darling::{Error, FromMeta, Result};
 use proc_macro2::{Span, TokenStream};

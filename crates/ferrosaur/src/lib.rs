@@ -139,8 +139,8 @@ enum JsProp {
     SetIndex(FlagLike<Setter>),
 }
 
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/module.md"))]
 #[derive(Debug, Clone, FromMeta)]
-#[doc = include_str!("../../../docs/src/reference/module.md")]
 struct Module(Positional<String, ModuleOptions>);
 
 #[derive(Debug, Clone, FromMeta)]
@@ -164,27 +164,27 @@ enum FastString {
     FastUnsafeDebug,
 }
 
-#[doc = include_str!("../../../docs/src/reference/global-this.md")]
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/global-this.md"))]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct GlobalThis;
 
-#[doc = include_str!("../../../docs/src/reference/value.md")]
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/value.md"))]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Value {
     #[darling(default)]
     of_type: Unary<V8InnerType>,
 }
 
-#[doc = include_str!("../../../docs/src/reference/interface.md")]
-#[doc = include_str!("../../../docs/src/reference/_snippets/todo-list.md")]
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/interface.md"))]
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/_snippets/todo-list.md"))]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Interface;
 
-#[doc = include_str!("../../../docs/src/reference/callable.md")]
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/callable.md"))]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Callable;
 
-#[doc = include_str!("../../../docs/src/reference/iterator.md")]
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/iterator.md"))]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Iterator_;
 
@@ -192,7 +192,7 @@ type PropKeyString = StringLike<String>;
 
 type PropKeySymbol = StringLike<WellKnown>;
 
-#[doc = include_str!("../../../docs/src/reference/interface/prop.md")]
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/interface/prop.md"))]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Property {
     name: Option<Unary<PropKeyString>>,
@@ -201,7 +201,7 @@ struct Property {
     with_setter: Flag,
 }
 
-#[doc = include_str!("../../../docs/src/reference/interface/func.md")]
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/interface/func.md"))]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Function {
     name: Option<Unary<PropKeyString>>,
@@ -209,13 +209,13 @@ struct Function {
     symbol: Option<Unary<PropKeySymbol>>,
 }
 
-#[doc = include_str!("../../../docs/src/reference/interface/new.md")]
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/interface/new.md"))]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Constructor {
     class: Option<Unary<PropKeyString>>,
 }
 
-#[doc = include_str!("../../../docs/src/reference/interface/get-set.md")]
+#[cfg_attr(doctest, doc = include_str!("../../../docs/src/reference/interface/get-set.md"))]
 #[derive(Debug, Default, Clone, FromMeta)]
 struct Getter;
 
