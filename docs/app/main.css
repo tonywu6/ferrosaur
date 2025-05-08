@@ -381,27 +381,18 @@ figure.fig-text {
       padding-inline: 0;
       margin-block-end: 1rem;
 
-      > figcaption {
+      > :not(pre, img, picture, video, :has(img, picture, video)) {
         padding-inline: var(--blockquote-padding-inline);
-      }
-
-      > pre {
-        padding-inline: 0;
-        margin-block-end: 1rem;
-
-        > code {
-          padding: var(--blockquote-padding-block) var(--blockquote-padding-inline);
-        }
       }
     }
 
     > pre {
       padding-inline: 0;
       margin-block-end: 1rem;
+    }
 
-      > code {
-        padding: var(--blockquote-padding-block) var(--blockquote-padding-inline);
-      }
+    pre > code {
+      padding: var(--blockquote-padding-block) var(--blockquote-padding-inline);
     }
 
     > blockquote {

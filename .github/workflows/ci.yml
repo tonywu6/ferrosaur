@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - .github/workflows/ci.yml
+      - Cargo.**
+      - crates/**
+      - examples/**
 
   pull_request:
     branches:
@@ -103,16 +108,6 @@ jobs:
     needs:
       - test
 
-    strategy:
-      matrix:
-        example:
-          - example-console
-          - example-calculator
-          - example-ts
-          - example-ts-blank-space
-
-      fail-fast: false
-
     runs-on: ubuntu-latest
 
     steps:
@@ -134,4 +129,17 @@ jobs:
           key: ${{ needs.test.outputs.CACHE_KEY }}
           restore-keys: ${{ needs.test.outputs.CACHE_KEY_RESTORE }}
 
-      - run: cargo run --package ${{ matrix.example }}
+      - run: cargo run --package example-console
+        if: always()
+
+      - run: cargo run --package example-calculator
+        if: always()
+
+      - run: cargo run --package example-fibonacci
+        if: always()
+
+      - run: cargo run --package example-ts
+        if: always()
+
+      - run: cargo run --package example-ts-blank-space
+        if: always()

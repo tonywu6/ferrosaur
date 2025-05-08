@@ -4,7 +4,7 @@
 
 Introductory example using `console.log` — start from here!
 
-## [_calculator_](calculator.md)
+## [_calculator_](calculator.md), [_fibonacci_](fibonacci.md)
 
 Embedding ES modules for fun and portable programs.
 

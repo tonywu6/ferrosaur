@@ -2,4 +2,4 @@
 >
 > This page is included only for link validation during build.
 
-{{#include ../../../README.md}}
+{{#include ../../../../../examples/console/README.md}}

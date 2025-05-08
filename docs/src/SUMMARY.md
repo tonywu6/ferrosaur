@@ -6,6 +6,7 @@
 
   - [console.log](examples/console.md)
   - [calculator](examples/calculator.md)
+  - [fibonacci](examples/fibonacci.md)
   - [ts](examples/ts.md)
   - [ts-blank-space](examples/ts-blank-space.md)
 
@@ -24,6 +25,9 @@
   - [Specifying types](reference/typing.md)
   - [Common pitfalls](reference/common-pitfalls.md)
 
-[CHANGELOG](CHANGELOG.md)
+- [CHANGELOG](CHANGELOG.md)
 
-[INTERNAL: Repo README](./_internal/README.md)
+- [INTERNAL](./_internal/README.md)
+- [INTERNAL](./_internal/examples/calculator/README.md)
+- [INTERNAL](./_internal/examples/console/README.md)
+- [INTERNAL](./_internal/examples/fibonacci/README.md)

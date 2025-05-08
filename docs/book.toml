@@ -8,7 +8,7 @@ title = "ferrosaur"
 [build]
 build-dir = "dist"
 create-missing = false
-extra-watch-dirs = ["app", "../examples", "../crates"]
+extra-watch-dirs = ["app", "../examples", "../crates", "../README.md"]
 
 [rust]
 edition = "2021"
