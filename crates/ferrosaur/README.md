@@ -1,8 +1,12 @@
 # ferrosaur
 
+<div class="badges">
+
 [![crates.io](https://img.shields.io/crates/v/ferrosaur?style=flat-square)](https://crates.io/crates/ferrosaur)
 [![documentation](https://img.shields.io/github/actions/workflow/status/tonywu6/ferrosaur/docs.yml?event=release&style=flat-square&label=docs)](https://tonywu6.github.io/ferrosaur/)
 [![MIT/Apache-2.0 licensed](https://img.shields.io/crates/l/ferrosaur?style=flat-square)](https://github.com/tonywu6/ferrosaur/tree/main/LICENSE-APACHE.md)
+
+</div>
 
 _ferrosaur_ derives statically-typed Rust code — à la [wasm-bindgen] — for
 [`deno_core::JsRuntime`] to interface with your JavaScript code.
