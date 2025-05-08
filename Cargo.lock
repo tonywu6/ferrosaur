@@ -856,6 +856,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-fibonacci"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "deno_core",
+ "ferrosaur",
+ "tokio",
+]
+
+[[package]]
 name = "example-runtime"
 version = "0.1.0"
 dependencies = [

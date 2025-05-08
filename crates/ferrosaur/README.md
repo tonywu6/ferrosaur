@@ -11,22 +11,25 @@ _ferrosaur_ derives statically-typed Rust code — à la [wasm-bindgen] — for
 
 You have:
 
-```javascript
+```js
 // lib.js
-export const add = (a, b) => a + b;
+export const slowFib = (n) =>
+  n === 0 ? 0 : n === 1 ? 1 : slowFib(n - 1) + slowFib(n - 2);
 ```
 
 You write:
 
 ```rust
 // lib.rs
+use ferrosaur::js;
+
 #[js(module("lib.js"))]
-struct Module;
+struct Math;
 
 #[js(interface)]
-impl Module {
+impl Math {
     #[js(func)]
-    fn add(&self, a: serde<f64>, b: serde<f64>) -> serde<f64> {}
+    fn slow_fib(&self, n: serde<usize>) -> serde<usize> {}
 }
 ```
 
@@ -34,8 +37,9 @@ You get:
 
 ```rust
 // let rt: &mut JsRuntime;
-let module = Module::main_module_init(rt).await?;
-let result = module.add(66.0, 3.0)?;
+let lib = Math::main_module_init(rt).await?;
+let fib = lib.slow_fib(42, rt)?;
+assert_eq!(fib, 267914296);
 ```
 
 </figure>

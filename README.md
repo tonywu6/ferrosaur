@@ -7,20 +7,31 @@
 <em/>So you use</em> [`deno_core`], <em>and you want to call JavaScript from Rust.</em>
 
 ```javascript
-export const add = (a, b) => a + b;
+// You have: lib.js
+export const slowFib = (n) =>
+  n === 0 ? 0 : n === 1 ? 1 : slowFib(n - 1) + slowFib(n - 2);
 ```
 
 ```rust
+// You write: lib.rs
 use ferrosaur::js;
 
 #[js(module("lib.js"))]
-struct Module;
+struct Math;
 
 #[js(interface)]
-impl Module {
+impl Math {
     #[js(func)]
-    fn add(&self, a: serde<f64>, b: serde<f64>) -> serde<f64> {}
+    fn slow_fib(&self, n: serde<usize>) -> serde<usize> {}
 }
+```
+
+```rust
+// You get:
+// let rt: &mut JsRuntime;
+let lib = Math::main_module_init(rt).await?;
+let fib = lib.slow_fib(42, rt)?;
+assert_eq!(fib, 267914296);
 ```
 
 _ferrosaur_ derives types and implementations, à la [wasm-bindgen], that you can use
