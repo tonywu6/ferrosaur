@@ -7,13 +7,13 @@
 <em/>So you use</em> [`deno_core`], <em>and you want to call JavaScript from Rust.</em>
 
 ```javascript
-// You have: lib.js
+// If you have: lib.js
 export const slowFib = (n) =>
   n === 0 ? 0 : n === 1 ? 1 : slowFib(n - 1) + slowFib(n - 2);
 ```
 
 ```rust
-// You write: lib.rs
+// and you write: lib.rs
 use ferrosaur::js;
 
 #[js(module("lib.js"))]
@@ -27,7 +27,7 @@ impl Math {
 ```
 
 ```rust
-// You get:
+// Then you get:
 // let rt: &mut JsRuntime;
 let lib = Math::main_module_init(rt).await?;
 let fib = lib.slow_fib(42, rt)?;
@@ -46,14 +46,11 @@ You may be looking for:
 <!-- prettier-ignore-start -->
 
 - [Examples](https://tonywu6.github.io/ferrosaur/examples)
-
   - [_console.log_](https://tonywu6.github.io/ferrosaur/examples/console)
     | [_calculator_](https://tonywu6.github.io/ferrosaur/examples/calculator)
     | [_ts_](https://tonywu6.github.io/ferrosaur/examples/ts)
     | [_ts-blank-space_](https://tonywu6.github.io/ferrosaur/examples/ts-blank-space)
-
 - [Reference](https://tonywu6.github.io/ferrosaur/reference)
-
   - [`js(global_this)`](https://tonywu6.github.io/ferrosaur/reference/global-this)
     | [`js(module)`](https://tonywu6.github.io/ferrosaur/reference/module)
     | [`js(value)`](https://tonywu6.github.io/ferrosaur/reference/value)

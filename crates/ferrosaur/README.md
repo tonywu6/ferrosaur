@@ -9,7 +9,7 @@ _ferrosaur_ derives statically-typed Rust code — à la [wasm-bindgen] — for
 
 <figure>
 
-You have:
+If you have:
 
 ```js
 // lib.js
@@ -17,7 +17,7 @@ export const slowFib = (n) =>
   n === 0 ? 0 : n === 1 ? 1 : slowFib(n - 1) + slowFib(n - 2);
 ```
 
-You write:
+... and you write:
 
 ```rust
 // lib.rs
@@ -33,7 +33,7 @@ impl Math {
 }
 ```
 
-You get:
+... then you get:
 
 ```rust
 // let rt: &mut JsRuntime;
