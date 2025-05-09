@@ -17,6 +17,11 @@ concurrency:
 jobs:
   build:
     name: Build
+
+    permissions:
+      contents: read
+      actions: write # evict cache
+
     runs-on: ubuntu-latest
 
     steps:
