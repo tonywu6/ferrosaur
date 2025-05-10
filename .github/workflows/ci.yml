@@ -47,60 +47,38 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Get cache key
-        run: |
-          CARGO_VERSION=$(cargo --version)
-          echo "CACHE_KEY=${{ runner.os }}-${{ runner.arch }}-$CARGO_VERSION-${{hashFiles('**/Cargo.toml')}}-${{hashFiles('**/Cargo.lock')}}-${{github.workflow}}-${{github.job}}" >> "$GITHUB_OUTPUT"
-          {
-            echo "CACHE_KEY_RESTORE<<EOF"
-            echo "${{ runner.os }}-${{ runner.arch }}-$CARGO_VERSION-${{hashFiles('**/Cargo.toml')}}-${{hashFiles('**/Cargo.lock')}}-"
-            echo "${{ runner.os }}-${{ runner.arch }}-$CARGO_VERSION-${{hashFiles('**/Cargo.toml')}}-"
-            echo "${{ runner.os }}-${{ runner.arch }}-$CARGO_VERSION-"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-        id: cache-key
+      - name: Get Cargo version
+        run: echo "cargo-version=$(cargo --version)" >> "$GITHUB_OUTPUT"
         shell: bash
+        id: cargo-version
 
-      - uses: actions/cache/restore@v4
+      - uses: tonywu6/cache-hit-please@v1.1
+        id: cache
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         with:
+          deps: |
+            ${{runner.os}}
+            ${{runner.arch}}
+            ${{steps.cargo-version.outputs.cargo-version}}
+            ${{hashFiles('**/Cargo.toml')}}
+            ${{hashFiles('**/Cargo.lock')}}
+            ${{hashFiles('deno.json')}}
+            ${{hashFiles('deno.lock')}}
+            ${{github.workflow}}
+            ${{github.run_id}}
           path: |
+            .bin/
             target/
-          key: ${{ steps.cache-key.outputs.CACHE_KEY }}
-          restore-keys: ${{ steps.cache-key.outputs.CACHE_KEY_RESTORE }}
-        id: cache-restore
 
+      - run: cargo test --all-features --no-run
       - run: cargo test --all-features --no-fail-fast -- --include-ignored
-
       - run: cargo build --workspace
 
-      - name: Evict cache
-        run: gh cache delete '${{ steps.cache-key.outputs.CACHE_KEY }}'
-        if: ${{ steps.cache-restore.outputs.cache-hit }}
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: actions/cache/save@v4
-        if: always()
-        with:
-          path: |
-            target/
-          key: ${{ steps.cache-key.outputs.CACHE_KEY }}
-
-      - name: Save cache key
-        id: save-cache-key
-        run: |
-          echo "CACHE_KEY=${{ steps.cache-key.outputs.CACHE_KEY }}" >> "$GITHUB_OUTPUT"
-          {
-            echo "CACHE_KEY_RESTORE<<EOF"
-            echo "${{ steps.cache-key.outputs.CACHE_KEY }}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-        shell: bash
-
     outputs:
-      CACHE_KEY: ${{ steps.save-cache-key.outputs.CACHE_KEY }}
-      CACHE_KEY_RESTORE: ${{ steps.save-cache-key.outputs.CACHE_KEY_RESTORE }}
+      cache-primary-key: ${{steps.cache.outputs.primary-key}}
+      cache-restore-key: ${{steps.cache.outputs.restore-key}}
+      cache-path: ${{steps.cache.outputs.path}}
 
   test-examples:
     name: Test examples
@@ -124,10 +102,9 @@ jobs:
 
       - uses: actions/cache/restore@v4
         with:
-          path: |
-            target/
-          key: ${{ needs.test.outputs.CACHE_KEY }}
-          restore-keys: ${{ needs.test.outputs.CACHE_KEY_RESTORE }}
+          path: ${{needs.test.outputs.cache-path}}
+          key: ${{ needs.test.outputs.cache-primary-key }}
+          restore-keys: ${{ needs.test.outputs.cache-restore-key }}
 
       - run: cargo run --package example-console
         if: always()
